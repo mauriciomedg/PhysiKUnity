@@ -1,8 +1,16 @@
-using System.Runtime.InteropServices;
 using System;
-using UnityEngine;
+using System.Runtime.InteropServices;
 
-public class PhysiKNative
+[StructLayout(LayoutKind.Sequential)]
+public struct PhysiKComponentHandle
+{
+    public uint index;
+    public uint generation;
+
+    public bool IsValid => index != 0xFFFFFFFFu && generation != 0u;
+}
+
+public static class PhysiKNative
 {
     private const string DllName = "PhysiK";
 
@@ -37,6 +45,19 @@ public class PhysiKNative
         float inverseMass);
 
     [DllImport(DllName)]
+    public static extern PhysiKComponentHandle PHYSIK_CreateTetMeshComponent(
+        IntPtr world,
+        int[] nodeIndices,
+        int nodeCount,
+        int[] tetNodeIndices,
+        int tetCount);
+
+    [DllImport(DllName)]
+    public static extern int PHYSIK_IsComponentHandleValid(
+        IntPtr world,
+        PhysiKComponentHandle component);
+
+    [DllImport(DllName)]
     public static extern void PHYSIK_GetNodePosition(
         IntPtr world,
         int nodeIndex,
@@ -51,4 +72,29 @@ public class PhysiKNative
         out float x,
         out float y,
         out float z);
+
+    [DllImport(DllName)]
+    public static extern void PHYSIK_SetNodePosition(
+        IntPtr world,
+        int nodeIndex,
+        float x,
+        float y,
+        float z);
+
+    [DllImport(DllName)]
+    public static extern void PHYSIK_AddPointConnection(
+    IntPtr world,
+    int node0,
+    int node1,
+    int node2,
+    int node3,
+    float barycentricX,
+    float barycentricY,
+    float barycentricZ,
+    float barycentricW,
+    float targetX,
+    float targetY,
+    float targetZ,
+    float stiffness,
+    float damping);
 }
