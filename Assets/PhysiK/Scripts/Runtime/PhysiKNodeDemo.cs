@@ -33,8 +33,7 @@ public class PhysiKNodeDemo : MonoBehaviour
             world,
             transform.position.x,
             transform.position.y,
-            transform.position.z,
-            1.0f); // inverse mass = 1 means mass = 1
+            transform.position.z); // inverse mass = 1 means mass = 1
 
         Debug.Log($"PhysiK world created. Node index: {nodeIndex}");
     }

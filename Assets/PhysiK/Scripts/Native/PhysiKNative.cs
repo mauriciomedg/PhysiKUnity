@@ -41,8 +41,7 @@ public static class PhysiKNative
         IntPtr world,
         float x,
         float y,
-        float z,
-        float inverseMass);
+        float z);
 
     [DllImport(DllName)]
     public static extern PhysiKComponentHandle PHYSIK_CreateTetMeshComponent(

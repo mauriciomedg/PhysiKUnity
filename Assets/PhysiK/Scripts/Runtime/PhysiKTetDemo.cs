@@ -20,6 +20,7 @@ public sealed class PhysiKTetDemo : MonoBehaviour
 
     private Vector3 anchor0;
     private Vector3 anchor1;
+    private Vector3 anchor2;
 
     private static readonly int[,] TetEdges =
     {
@@ -59,15 +60,16 @@ public sealed class PhysiKTetDemo : MonoBehaviour
         nodes = new int[4];
 
         // fixed nodes: inverseMass = 0
-        nodes[0] = PhysiKNative.PHYSIK_AddNode(world, origin.x + 0.0f, origin.y + 0.0f, origin.z + 0.0f, 10.0f);
-        nodes[1] = PhysiKNative.PHYSIK_AddNode(world, origin.x + 1.0f, origin.y + 0.0f, origin.z + 0.0f, 10.0f);
+        nodes[0] = PhysiKNative.PHYSIK_AddNode(world, origin.x + 0.0f, origin.y + 0.0f, origin.z + 0.0f);
+        nodes[1] = PhysiKNative.PHYSIK_AddNode(world, origin.x + 1.0f, origin.y + 0.0f, origin.z + 0.0f);
 
         // dynamic nodes: inverseMass = 1
-        nodes[2] = PhysiKNative.PHYSIK_AddNode(world, origin.x + 0.0f, origin.y + 0.0f, origin.z + 1.0f, 1.0f);
-        nodes[3] = PhysiKNative.PHYSIK_AddNode(world, origin.x + 0.3f, origin.y + 1.0f, origin.z + 0.3f, 1.0f);
+        nodes[2] = PhysiKNative.PHYSIK_AddNode(world, origin.x + 0.0f, origin.y + 0.0f, origin.z + 1.0f);
+        nodes[3] = PhysiKNative.PHYSIK_AddNode(world, origin.x + 0.3f, origin.y + 1.0f, origin.z + 0.3f);
 
         anchor0 = new Vector3(origin.x + 0.0f, origin.y + 0.0f, origin.z + 0.0f);
         anchor1 = new Vector3(origin.x + 1.0f, origin.y + 0.0f, origin.z + 0.0f);
+        anchor2 = new Vector3(origin.x + 0.0f, origin.y + 0.0f, origin.z + 1.0f);
 
         int[] tetNodeIndices =
         {
@@ -80,6 +82,13 @@ public sealed class PhysiKTetDemo : MonoBehaviour
             nodes.Length,
             tetNodeIndices,
             1);
+
+        PhysiKNative.PHYSIK_SetNodePosition(
+            world,
+            nodes[3],
+            origin.x + 0.3f,
+            origin.y + 1.5f,
+            origin.z + 0.3f);
 
         int valid = PhysiKNative.PHYSIK_IsComponentHandleValid(world, tetMesh);
 
@@ -125,7 +134,8 @@ public sealed class PhysiKTetDemo : MonoBehaviour
         }
 
         AddAnchorConnection(nodes[0], anchor0);
-        AddAnchorConnection(nodes[1], anchor1);
+        //AddAnchorConnection(nodes[1], anchor1);
+        //AddAnchorConnection(nodes[2], anchor2);
 
         PhysiKNative.PHYSIK_Step(world, Time.fixedDeltaTime);
         UpdateVisuals();
