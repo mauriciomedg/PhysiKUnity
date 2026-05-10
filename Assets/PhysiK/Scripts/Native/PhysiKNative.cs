@@ -10,6 +10,15 @@ public struct PhysiKComponentHandle
     public bool IsValid => index != 0xFFFFFFFFu && generation != 0u;
 }
 
+[StructLayout(LayoutKind.Sequential)]
+public struct PhysikMaterialDesc
+{
+    public float density;
+    public float youngModulus;
+    public float poissonRatio;
+    public float damping;
+}
+
 public static class PhysiKNative
 {
     private const string DllName = "PhysiK";
@@ -43,13 +52,20 @@ public static class PhysiKNative
         float y,
         float z);
 
-    [DllImport(DllName)]
-    public static extern PhysiKComponentHandle PHYSIK_CreateTetMeshComponent(
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern PhysiKComponentHandle PHYSIK_CreateTetMeshComponentWithMaterialDesc(
+            IntPtr world,
+            int[] nodeIndices,
+            int nodeCount,
+            int[] tetNodeIndices,
+            int tetCount,
+            ref PhysikMaterialDesc material);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void PHYSIK_SetTetMeshMaterial(
         IntPtr world,
-        int[] nodeIndices,
-        int nodeCount,
-        int[] tetNodeIndices,
-        int tetCount);
+        PhysiKComponentHandle component,
+        ref PhysikMaterialDesc material);
 
     [DllImport(DllName)]
     public static extern int PHYSIK_IsComponentHandleValid(

@@ -1,3 +1,4 @@
+using PhysiK.Unity;
 using System;
 using UnityEngine;
 
@@ -14,7 +15,8 @@ public sealed class PhysiKTetDemo : MonoBehaviour
     private IntPtr world = IntPtr.Zero;
     private PhysiKComponentHandle tetMesh;
     private int[] nodes;
-
+    public PhysikMaterialAsset material;
+    
     private Transform[] nodeVisuals;
     private LineRenderer[] edgeVisuals;
 
@@ -76,12 +78,14 @@ public sealed class PhysiKTetDemo : MonoBehaviour
             nodes[0], nodes[1], nodes[2], nodes[3]
         };
 
-        tetMesh = PhysiKNative.PHYSIK_CreateTetMeshComponent(
+        PhysikMaterialDesc nativeMaterial = material.ToNative();
+        tetMesh = PhysiKNative.PHYSIK_CreateTetMeshComponentWithMaterialDesc(
             world,
             nodes,
             nodes.Length,
             tetNodeIndices,
-            1);
+            1,
+            ref nativeMaterial);
 
         PhysiKNative.PHYSIK_SetNodePosition(
             world,

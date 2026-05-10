@@ -525,9 +525,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PhysiKTetDemo
   substeps: 5
-  useImplicitEuler: 0
+  useImplicitEuler: 1
   gravity: {x: 0, y: -2, z: 0}
   nodeRadius: 0.08
+  material: {fileID: 11400000, guid: 027f2fead9004894495bb1c1afaae40b, type: 2}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
