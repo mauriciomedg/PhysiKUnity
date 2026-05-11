@@ -11,11 +11,12 @@ public sealed class PhysiKTetDemo : MonoBehaviour
 
     // Unity convention: Y up, so gravity is usually negative Y.
     // If your native engine uses the opposite sign, flip this to +9.81.
-    [SerializeField] private Vector3 gravity = new Vector3(0.0f, -9.81f, 0.0f);
+    private Vector3 gravity = new Vector3(9.0f, 9.81f, 0.0f);
 
     [Header("Cube Tet Mesh")]
     [SerializeField] private float cubeSize = 1.0f;
     [SerializeField] private PhysikMaterialAsset material;
+    [SerializeField] private PhysiKFemModel femModel = PhysiKFemModel.Corotational;
 
     [Header("Bottom Anchor Point Connections")]
     [SerializeField] private float anchorStiffness = 5000.0f;
@@ -110,13 +111,16 @@ public sealed class PhysiKTetDemo : MonoBehaviour
 
         PhysikMaterialDesc nativeMaterial = material.ToNative();
 
-        tetMesh = PhysiKNative.PHYSIK_CreateTetMeshComponentWithMaterialDesc(
+        Debug.Log($"Creating TetMesh with FEM model: {femModel}", this);
+
+        tetMesh = PhysiKNative.PHYSIK_CreateTetMeshComponent(
             world,
             nodes,
             nodes.Length,
             tetNodeIndices,
             tetNodeIndices.Length / 4,
-            ref nativeMaterial);
+            ref nativeMaterial,
+            femModel);
 
         int valid = PhysiKNative.PHYSIK_IsComponentHandleValid(world, tetMesh);
 

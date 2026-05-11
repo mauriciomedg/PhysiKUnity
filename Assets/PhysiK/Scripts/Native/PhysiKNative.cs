@@ -19,6 +19,13 @@ public struct PhysikMaterialDesc
     public float damping;
 }
 
+public enum PhysiKFemModel : uint
+{
+    Linear = 0,
+    Corotational = 1,
+    NeoHookean = 2
+}
+
 public static class PhysiKNative
 {
     private const string DllName = "PhysiK";
@@ -53,13 +60,14 @@ public static class PhysiKNative
         float z);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern PhysiKComponentHandle PHYSIK_CreateTetMeshComponentWithMaterialDesc(
-            IntPtr world,
-            int[] nodeIndices,
-            int nodeCount,
-            int[] tetNodeIndices,
-            int tetCount,
-            ref PhysikMaterialDesc material);
+    public static extern PhysiKComponentHandle PHYSIK_CreateTetMeshComponent(
+        IntPtr world,
+        int[] nodeIndices,
+        int nodeCount,
+        int[] tetNodeIndices,
+        int tetCount,
+        ref PhysikMaterialDesc material,
+        PhysiKFemModel femModel);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void PHYSIK_SetTetMeshMaterial(
@@ -112,4 +120,5 @@ public static class PhysiKNative
     float targetZ,
     float stiffness,
     float damping);
+
 }

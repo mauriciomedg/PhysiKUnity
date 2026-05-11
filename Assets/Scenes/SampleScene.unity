@@ -206,7 +206,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: 0.1078097, y: -0, z: -0, w: 0.99417156}
-  m_LocalPosition: {x: -0.34, y: 2.81, z: -2.41}
+  m_LocalPosition: {x: -0.34, y: 3.26, z: -4.48}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -429,7 +429,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PhysiKNodeDemo
   substeps: 1
   useImplicitEuler: 1
-  gravity: {x: 0, y: -9.81, z: 0}
+  gravity: {x: 0, y: 9.81, z: 0}
   visualSphere: {fileID: 0}
 --- !u!1 &832575517
 GameObject:
@@ -526,9 +526,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PhysiKTetDemo
   substeps: 5
   useImplicitEuler: 1
-  gravity: {x: 0, y: -9, z: 0}
   cubeSize: 1
   material: {fileID: 11400000, guid: 027f2fead9004894495bb1c1afaae40b, type: 2}
+  femModel: 1
   anchorStiffness: 250
   anchorDamping: 10
   nodeRadius: 0.08
