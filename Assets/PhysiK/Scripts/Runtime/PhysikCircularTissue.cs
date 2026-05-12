@@ -31,6 +31,7 @@ public class PhysikCircularTissue : MonoBehaviour
     [Header("Boundary Point Connections")]
     [SerializeField] private float boundaryStiffness = 20000.0f;
     [SerializeField] private float boundaryDamping = 0.0f;
+    [SerializeField] private float radialBoundaryOffset = 0.15f;
 
     [Header("Runtime Cutting")]
     [SerializeField] private int randomSeed = 12345;
@@ -364,7 +365,12 @@ public class PhysikCircularTissue : MonoBehaviour
             globalToLocalNode[nodes[i]] = i;
         }
 
-        BuildBoundaryNodes(selectedCells, selectedCellSet, gridToLocalNode, nodeWorldPositions);
+        BuildBoundaryNodes(
+            selectedCells,
+            selectedCellSet,
+            gridToLocalNode,
+            nodeWorldPositions,
+            origin);
 
         PhysikMaterialDesc nativeMaterial = material.ToNative();
 
@@ -398,7 +404,8 @@ public class PhysikCircularTissue : MonoBehaviour
         List<Vector2Int> selectedCells,
         HashSet<Vector2Int> selectedCellSet,
         Dictionary<GridNodeKey, int> gridToLocalNode,
-        Vector3[] initialPositions)
+        Vector3[] initialPositions,
+        Vector3 center)
     {
         HashSet<int> boundaryLocalNodes = new HashSet<int>();
 
@@ -449,7 +456,24 @@ public class PhysikCircularTissue : MonoBehaviour
 
         for (int i = 0; i < boundaryLocalNodeIndices.Length; ++i)
         {
-            boundaryAnchorPositions[i] = initialPositions[boundaryLocalNodeIndices[i]];
+            Vector3 originalPosition = initialPositions[boundaryLocalNodeIndices[i]];
+
+            Vector3 radial = new Vector3(
+                originalPosition.x - center.x,
+                0.0f,
+                originalPosition.z - center.z);
+
+            if (radial.sqrMagnitude > 1.0e-8f)
+            {
+                radial.Normalize();
+            }
+            else
+            {
+                radial = Vector3.zero;
+            }
+
+            boundaryAnchorPositions[i] =
+                originalPosition + radial * radialBoundaryOffset;
         }
     }
 
@@ -507,6 +531,45 @@ public class PhysikCircularTissue : MonoBehaviour
         }
     }
 
+    private bool TetTouchesBoundary(int tetIndex)
+    {
+        if (tetNodeIndices == null || boundaryLocalNodeIndices == null)
+        {
+            return true;
+        }
+
+        int baseIndex = tetIndex * 4;
+
+        if (baseIndex < 0 || baseIndex + 3 >= tetNodeIndices.Length)
+        {
+            return true;
+        }
+
+        int g0 = tetNodeIndices[baseIndex + 0];
+        int g1 = tetNodeIndices[baseIndex + 1];
+        int g2 = tetNodeIndices[baseIndex + 2];
+        int g3 = tetNodeIndices[baseIndex + 3];
+
+        int l0 = globalToLocalNode[g0];
+        int l1 = globalToLocalNode[g1];
+        int l2 = globalToLocalNode[g2];
+        int l3 = globalToLocalNode[g3];
+
+        for (int i = 0; i < boundaryLocalNodeIndices.Length; ++i)
+        {
+            int boundaryNode = boundaryLocalNodeIndices[i];
+
+            if (l0 == boundaryNode ||
+                l1 == boundaryNode ||
+                l2 == boundaryNode ||
+                l3 == boundaryNode)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
     private void RemoveOneRandomTet()
     {
         if (world == IntPtr.Zero || tetNodeIndices == null)
@@ -535,7 +598,8 @@ public class PhysikCircularTissue : MonoBehaviour
         {
             int candidate = random.Next(0, totalTetCount);
 
-            if (PhysiKNative.PHYSIK_IsTetActive(world, tetMesh, candidate) != 0)
+            if (PhysiKNative.PHYSIK_IsTetActive(world, tetMesh, candidate) != 0 &&
+                !TetTouchesBoundary(candidate))
             {
                 selectedTet = candidate;
                 break;
@@ -546,7 +610,8 @@ public class PhysikCircularTissue : MonoBehaviour
         {
             for (int tet = 0; tet < totalTetCount; ++tet)
             {
-                if (PhysiKNative.PHYSIK_IsTetActive(world, tetMesh, tet) != 0)
+                if (PhysiKNative.PHYSIK_IsTetActive(world, tetMesh, tet) != 0 &&
+                    !TetTouchesBoundary(tet))
                 {
                     selectedTet = tet;
                     break;
