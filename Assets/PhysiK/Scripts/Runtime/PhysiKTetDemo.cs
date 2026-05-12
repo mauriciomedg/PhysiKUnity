@@ -27,6 +27,11 @@ public sealed class PhysiKTetDemo : MonoBehaviour
     [SerializeField] private float anchorStiffness = 20000.0f;
     [SerializeField] private float anchorDamping = 200.0f;
 
+    [Header("Cutting Test")]
+    [SerializeField] private KeyCode cutKey = KeyCode.R;
+    [SerializeField] private int segmentToCut = -1;
+    [SerializeField] private bool cutOnlyOnce = true;
+
     [Header("Visual")]
     [SerializeField] private float nodeRadius = 0.045f;
     [SerializeField] private float edgeWidth = 0.018f;
@@ -39,10 +44,19 @@ public sealed class PhysiKTetDemo : MonoBehaviour
     private Vector3[] leftEndAnchors;
 
     private int[] tetNodeIndices;
-    private int[,] visualEdges;
 
     private Transform[] nodeVisuals;
-    private LineRenderer[] edgeVisuals;
+    private readonly List<TetEdgeVisual> tetEdgeVisuals = new List<TetEdgeVisual>();
+
+    private bool hasCut;
+
+    private struct TetEdgeVisual
+    {
+        public int tetIndex;
+        public int localNodeA;
+        public int localNodeB;
+        public LineRenderer line;
+    }
 
     private void Awake()
     {
@@ -65,8 +79,46 @@ public sealed class PhysiKTetDemo : MonoBehaviour
         UpdateVisuals();
 
         Debug.Log(
-            $"PhysiK beam tet demo created. FEM={femModel}, segments={beamSegments}, tets={tetNodeIndices.Length / 4}",
+            $"PhysiK beam created. FEM={femModel}, segments={beamSegments}, tets={tetNodeIndices.Length / 4}. Press {cutKey} to cut.",
             this);
+    }
+
+    private void Update()
+    {
+        if (Input.GetKeyDown(cutKey))
+        {
+            if (cutOnlyOnce && hasCut)
+            {
+                Debug.Log("Cut already performed.", this);
+                return;
+            }
+
+            CutMiddleSegment();
+        }
+    }
+
+    private void FixedUpdate()
+    {
+        if (world == IntPtr.Zero)
+        {
+            return;
+        }
+
+        if (applyGravityEveryFixedUpdate)
+        {
+            ApplyGravityToNative();
+        }
+
+        // Point connections are transient: push them every physics step.
+        for (int i = 0; i < leftEndLocalNodeIndices.Length; ++i)
+        {
+            int localNodeIndex = leftEndLocalNodeIndices[i];
+            AddAnchorConnection(nodes[localNodeIndex], leftEndAnchors[i]);
+        }
+
+        PhysiKNative.PHYSIK_Step(world, Time.fixedDeltaTime);
+
+        UpdateVisuals();
     }
 
     private void CreateBeamTetMesh()
@@ -126,17 +178,7 @@ public sealed class PhysiKTetDemo : MonoBehaviour
             int b2 = nodes[StationNodeIndex(segment + 1, 2)];
             int b3 = nodes[StationNodeIndex(segment + 1, 3)];
 
-            // Cube mapping:
-            // old cube 0 = a0
-            // old cube 1 = b0
-            // old cube 2 = a1
-            // old cube 3 = b1
-            // old cube 4 = a2
-            // old cube 5 = b2
-            // old cube 6 = a3
-            // old cube 7 = b3
-            //
-            // Six tets around diagonal a0 -> b3.
+            // Six tets per beam segment.
             AddTet(tets, a0, b1, b0, b3);
             AddTet(tets, a0, a1, b1, b3);
             AddTet(tets, a0, a3, a1, b3);
@@ -171,7 +213,6 @@ public sealed class PhysiKTetDemo : MonoBehaviour
             return;
         }
 
-        // Anchor the left end of the beam using transient point connections.
         leftEndLocalNodeIndices = new[]
         {
             StationNodeIndex(0, 0),
@@ -196,7 +237,69 @@ public sealed class PhysiKTetDemo : MonoBehaviour
             leftEndAnchors[i] = new Vector3(x, y, z);
         }
 
-        visualEdges = BuildUniqueTetEdges(tetNodeIndices, nodes);
+        if (segmentToCut < 0)
+        {
+            segmentToCut = beamSegments / 2;
+        }
+
+        segmentToCut = Mathf.Clamp(segmentToCut, 0, beamSegments - 1);
+    }
+
+    private void CutMiddleSegment()
+    {
+        if (world == IntPtr.Zero || tetNodeIndices == null || beamSegments <= 0)
+        {
+            return;
+        }
+
+        int totalTetCount = tetNodeIndices.Length / 4;
+        int tetsPerSegment = totalTetCount / beamSegments;
+
+        if (tetsPerSegment <= 0)
+        {
+            Debug.LogError("Invalid tetsPerSegment. Cannot cut beam.", this);
+            return;
+        }
+
+        int segment = segmentToCut >= 0
+            ? Mathf.Clamp(segmentToCut, 0, beamSegments - 1)
+            : beamSegments / 2;
+
+        int firstTet = segment * tetsPerSegment;
+
+        int deactivated = 0;
+
+        for (int i = 0; i < tetsPerSegment; ++i)
+        {
+            int tetIndex = firstTet + i;
+
+            if (tetIndex < 0 || tetIndex >= totalTetCount)
+            {
+                continue;
+            }
+
+            int wasActive = PhysiKNative.PHYSIK_IsTetActive(world, tetMesh, tetIndex);
+
+            PhysiKNative.PHYSIK_DeactivateTet(world, tetMesh, tetIndex);
+
+            if (wasActive != 0)
+            {
+                ++deactivated;
+            }
+        }
+
+        hasCut = true;
+
+        int activeCount = PhysiKNative.PHYSIK_GetActiveTetCount(world, tetMesh);
+
+        Debug.Log(
+            $"CUT: segment={segment}/{beamSegments - 1}, " +
+            $"tetsPerSegment={tetsPerSegment}, " +
+            $"deactivated={deactivated}, " +
+            $"activeTets={activeCount}/{totalTetCount}",
+            this);
+
+        UpdateVisuals();
     }
 
     private int StationNodeIndex(int station, int corner)
@@ -212,55 +315,6 @@ public sealed class PhysiKTetDemo : MonoBehaviour
         tets.Add(n3);
     }
 
-    private static int[,] BuildUniqueTetEdges(int[] flattenedTetNodeIndices, int[] globalNodes)
-    {
-        Dictionary<int, int> globalToLocal = new Dictionary<int, int>();
-
-        for (int i = 0; i < globalNodes.Length; ++i)
-        {
-            globalToLocal[globalNodes[i]] = i;
-        }
-
-        HashSet<(int, int)> uniqueEdges = new HashSet<(int, int)>();
-
-        for (int t = 0; t < flattenedTetNodeIndices.Length; t += 4)
-        {
-            int a = globalToLocal[flattenedTetNodeIndices[t + 0]];
-            int b = globalToLocal[flattenedTetNodeIndices[t + 1]];
-            int c = globalToLocal[flattenedTetNodeIndices[t + 2]];
-            int d = globalToLocal[flattenedTetNodeIndices[t + 3]];
-
-            AddEdge(uniqueEdges, a, b);
-            AddEdge(uniqueEdges, a, c);
-            AddEdge(uniqueEdges, a, d);
-            AddEdge(uniqueEdges, b, c);
-            AddEdge(uniqueEdges, b, d);
-            AddEdge(uniqueEdges, c, d);
-        }
-
-        int[,] edges = new int[uniqueEdges.Count, 2];
-        int index = 0;
-
-        foreach ((int a, int b) in uniqueEdges)
-        {
-            edges[index, 0] = a;
-            edges[index, 1] = b;
-            ++index;
-        }
-
-        return edges;
-    }
-
-    private static void AddEdge(HashSet<(int, int)> edges, int a, int b)
-    {
-        if (a > b)
-        {
-            (a, b) = (b, a);
-        }
-
-        edges.Add((a, b));
-    }
-
     private void CreateVisuals()
     {
         nodeVisuals = new Transform[nodes.Length];
@@ -273,43 +327,56 @@ public sealed class PhysiKTetDemo : MonoBehaviour
             nodeVisuals[i] = sphere.transform;
         }
 
-        edgeVisuals = new LineRenderer[visualEdges.GetLength(0)];
+        CreateTetEdgeVisuals();
+    }
 
-        for (int i = 0; i < edgeVisuals.Length; ++i)
+    private void CreateTetEdgeVisuals()
+    {
+        tetEdgeVisuals.Clear();
+
+        Dictionary<int, int> globalToLocal = new Dictionary<int, int>();
+
+        for (int i = 0; i < nodes.Length; ++i)
         {
-            GameObject edge = new GameObject($"PhysiK_Beam_Tet_Edge_{i}");
-            LineRenderer line = edge.AddComponent<LineRenderer>();
+            globalToLocal[nodes[i]] = i;
+        }
 
-            line.positionCount = 2;
-            line.widthMultiplier = edgeWidth;
-            line.useWorldSpace = true;
+        int tetCount = tetNodeIndices.Length / 4;
 
-            edgeVisuals[i] = line;
+        for (int tet = 0; tet < tetCount; ++tet)
+        {
+            int baseIndex = tet * 4;
+
+            int a = globalToLocal[tetNodeIndices[baseIndex + 0]];
+            int b = globalToLocal[tetNodeIndices[baseIndex + 1]];
+            int c = globalToLocal[tetNodeIndices[baseIndex + 2]];
+            int d = globalToLocal[tetNodeIndices[baseIndex + 3]];
+
+            AddTetEdgeVisual(tet, a, b);
+            AddTetEdgeVisual(tet, a, c);
+            AddTetEdgeVisual(tet, a, d);
+            AddTetEdgeVisual(tet, b, c);
+            AddTetEdgeVisual(tet, b, d);
+            AddTetEdgeVisual(tet, c, d);
         }
     }
 
-    private void FixedUpdate()
+    private void AddTetEdgeVisual(int tetIndex, int localA, int localB)
     {
-        if (world == IntPtr.Zero)
+        GameObject edge = new GameObject($"PhysiK_Beam_Tet_{tetIndex}_Edge");
+        LineRenderer line = edge.AddComponent<LineRenderer>();
+
+        line.positionCount = 2;
+        line.widthMultiplier = edgeWidth;
+        line.useWorldSpace = true;
+
+        tetEdgeVisuals.Add(new TetEdgeVisual
         {
-            return;
-        }
-
-        if (applyGravityEveryFixedUpdate)
-        {
-            ApplyGravityToNative();
-        }
-
-        // Point connections are transient: push them every physics step.
-        for (int i = 0; i < leftEndLocalNodeIndices.Length; ++i)
-        {
-            int localNodeIndex = leftEndLocalNodeIndices[i];
-            AddAnchorConnection(nodes[localNodeIndex], leftEndAnchors[i]);
-        }
-
-        PhysiKNative.PHYSIK_Step(world, Time.fixedDeltaTime);
-
-        UpdateVisuals();
+            tetIndex = tetIndex,
+            localNodeA = localA,
+            localNodeB = localB,
+            line = line
+        });
     }
 
     private void AddAnchorConnection(int node, Vector3 target)
@@ -331,6 +398,18 @@ public sealed class PhysiKTetDemo : MonoBehaviour
         }
 
         PhysiKNative.PHYSIK_SetGravity(world, gravity.x, gravity.y, gravity.z);
+    }
+
+    [ContextMenu("Cut Middle Segment")]
+    private void CutMiddleSegmentContextMenu()
+    {
+        if (!Application.isPlaying)
+        {
+            Debug.Log("Enter Play Mode first.", this);
+            return;
+        }
+
+        CutMiddleSegment();
     }
 
     [ContextMenu("Apply Gravity To Native")]
@@ -381,18 +460,22 @@ public sealed class PhysiKTetDemo : MonoBehaviour
             nodeVisuals[i].position = positions[i];
         }
 
-        if (edgeVisuals == null || visualEdges == null)
+        for (int i = 0; i < tetEdgeVisuals.Count; ++i)
         {
-            return;
-        }
+            TetEdgeVisual edge = tetEdgeVisuals[i];
 
-        for (int i = 0; i < edgeVisuals.Length; ++i)
-        {
-            int a = visualEdges[i, 0];
-            int b = visualEdges[i, 1];
+            bool active = PhysiKNative.PHYSIK_IsTetActive(world, tetMesh, edge.tetIndex) != 0;
 
-            edgeVisuals[i].SetPosition(0, positions[a]);
-            edgeVisuals[i].SetPosition(1, positions[b]);
+            if (edge.line != null)
+            {
+                edge.line.enabled = active;
+
+                if (active)
+                {
+                    edge.line.SetPosition(0, positions[edge.localNodeA]);
+                    edge.line.SetPosition(1, positions[edge.localNodeB]);
+                }
+            }
         }
     }
 
@@ -420,15 +503,14 @@ public sealed class PhysiKTetDemo : MonoBehaviour
             }
         }
 
-        if (edgeVisuals != null)
+        for (int i = 0; i < tetEdgeVisuals.Count; ++i)
         {
-            for (int i = 0; i < edgeVisuals.Length; ++i)
+            if (tetEdgeVisuals[i].line != null)
             {
-                if (edgeVisuals[i] != null)
-                {
-                    Destroy(edgeVisuals[i].gameObject);
-                }
+                Destroy(tetEdgeVisuals[i].line.gameObject);
             }
         }
+
+        tetEdgeVisuals.Clear();
     }
 }

@@ -75,6 +75,30 @@ public static class PhysiKNative
         PhysiKComponentHandle component,
         ref PhysikMaterialDesc material);
 
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_IsTetActive(
+    IntPtr world,
+    PhysiKComponentHandle component,
+    int tetIndex);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void PHYSIK_SetTetActive(
+        IntPtr world,
+        PhysiKComponentHandle component,
+        int tetIndex,
+        int active);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void PHYSIK_DeactivateTet(
+        IntPtr world,
+        PhysiKComponentHandle component,
+        int tetIndex);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_GetActiveTetCount(
+        IntPtr world,
+        PhysiKComponentHandle component);
+
     [DllImport(DllName)]
     public static extern int PHYSIK_IsComponentHandleValid(
         IntPtr world,
