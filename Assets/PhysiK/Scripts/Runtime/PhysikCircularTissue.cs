@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using PhysiK.Unity;
+using System.Diagnostics;
+using UnityEngine.InputSystem;
 
 public class PhysikCircularTissue : MonoBehaviour
 {
@@ -9,9 +11,13 @@ public class PhysikCircularTissue : MonoBehaviour
     [SerializeField] private int substeps = 8;
     [SerializeField] private bool useImplicitEuler = true;
 
+    [Header("Simulation Loop")]
+    [SerializeField] private float simulationDt = 1.0f / 30.0f;
+    [SerializeField] private int maxSimulationStepsPerFrame = 1;
+
     [Header("Gravity")]
     [SerializeField] private Vector3 gravity = new Vector3(0.0f, -9.81f, 0.0f);
-    [SerializeField] private bool applyGravityEveryFixedUpdate = true;
+    [SerializeField] private bool applyGravityEveryStep = true;
 
     [Header("Circular Tissue / Pancake Mesh")]
     [SerializeField] private int gridResolution = 15;
@@ -27,15 +33,12 @@ public class PhysikCircularTissue : MonoBehaviour
     [SerializeField] private float boundaryDamping = 0.0f;
 
     [Header("Runtime Cutting")]
-    [SerializeField] private KeyCode cutKey = KeyCode.R;
     [SerializeField] private int randomSeed = 12345;
 
-    [Header("Visual")]
-    [SerializeField] private bool drawNodes = true;
-    [SerializeField] private bool drawTetEdges = true;
-    [SerializeField] private float nodeRadius = 0.025f;
-    [SerializeField] private float edgeWidth = 0.006f;
-    [SerializeField] private Material lineMaterial;
+    [Header("Visual Mesh")]
+    [SerializeField] private bool drawSurface = true;
+    [SerializeField] private Material surfaceMaterial;
+    [SerializeField] private bool doubleSidedSurface = true;
 
     private IntPtr world = IntPtr.Zero;
     private PhysiKComponentHandle tetMesh;
@@ -43,22 +46,22 @@ public class PhysikCircularTissue : MonoBehaviour
     private int[] nodes;
     private int[] tetNodeIndices;
 
-    private Vector3[] initialLocalPositions;
+    private Vector3[] nodeWorldPositions;
     private int[] boundaryLocalNodeIndices;
     private Vector3[] boundaryAnchorPositions;
 
-    private Transform[] nodeVisuals;
-    private readonly List<TetEdgeVisual> tetEdgeVisuals = new List<TetEdgeVisual>();
+    private readonly Dictionary<int, int> globalToLocalNode = new Dictionary<int, int>();
 
     private System.Random random;
+    private float simulationAccumulator;
 
-    private struct TetEdgeVisual
-    {
-        public int tetIndex;
-        public int localNodeA;
-        public int localNodeB;
-        public LineRenderer line;
-    }
+    private GameObject surfaceObject;
+    private Mesh surfaceMesh;
+    private MeshFilter surfaceMeshFilter;
+    private MeshRenderer surfaceMeshRenderer;
+
+    private int[] surfaceTriangles;
+    private bool surfaceTopologyDirty = true;
 
     private readonly struct GridNodeKey : IEquatable<GridNodeKey>
     {
@@ -95,6 +98,70 @@ public class PhysikCircularTissue : MonoBehaviour
         }
     }
 
+    private readonly struct FaceKey : IEquatable<FaceKey>
+    {
+        public readonly int a;
+        public readonly int b;
+        public readonly int c;
+
+        public FaceKey(int n0, int n1, int n2)
+        {
+            if (n0 > n1)
+            {
+                (n0, n1) = (n1, n0);
+            }
+
+            if (n1 > n2)
+            {
+                (n1, n2) = (n2, n1);
+            }
+
+            if (n0 > n1)
+            {
+                (n0, n1) = (n1, n0);
+            }
+
+            a = n0;
+            b = n1;
+            c = n2;
+        }
+
+        public bool Equals(FaceKey other)
+        {
+            return a == other.a && b == other.b && c == other.c;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is FaceKey other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = a;
+                hash = (hash * 397) ^ b;
+                hash = (hash * 397) ^ c;
+                return hash;
+            }
+        }
+    }
+
+    private readonly struct Face
+    {
+        public readonly int a;
+        public readonly int b;
+        public readonly int c;
+
+        public Face(int a, int b, int c)
+        {
+            this.a = a;
+            this.b = b;
+            this.c = c;
+        }
+    }
+
     private void Awake()
     {
         random = new System.Random(randomSeed);
@@ -103,7 +170,7 @@ public class PhysikCircularTissue : MonoBehaviour
 
         if (world == IntPtr.Zero)
         {
-            Debug.LogError("Failed to create PhysiK world.", this);
+            UnityEngine.Debug.LogError("Failed to create PhysiK world.", this);
             enabled = false;
             return;
         }
@@ -114,46 +181,78 @@ public class PhysikCircularTissue : MonoBehaviour
         ApplyGravityToNative();
 
         CreateCircularTissueTetMesh();
-        CreateVisuals();
-        UpdateVisuals();
 
-        Debug.Log(
-            $"Circular tissue created. FEM={femModel}, nodes={nodes.Length}, tets={tetNodeIndices.Length / 4}, boundaryNodes={boundaryLocalNodeIndices.Length}. Press {cutKey} to remove one random tet.",
+        if (drawSurface)
+        {
+            CreateSurfaceVisual();
+            RebuildSurfaceTopology();
+            UpdateSurfaceVertices();
+        }
+
+        int totalTetCount = tetNodeIndices.Length / 4;
+        int activeTetCount = PhysiKNative.PHYSIK_GetActiveTetCount(world, tetMesh);
+
+        UnityEngine.Debug.Log(
+            $"Circular tissue created. FEM={femModel}, nodes={nodes.Length}, totalTets={totalTetCount}, activeTets={activeTetCount}, boundaryNodes={boundaryLocalNodeIndices.Length}. Press R to remove one random tet.",
             this);
     }
 
     private void Update()
-    {
-        if (Input.GetKeyDown(cutKey))
-        {
-            RemoveOneRandomTet();
-        }
-    }
-
-    private void FixedUpdate()
     {
         if (world == IntPtr.Zero)
         {
             return;
         }
 
-        if (applyGravityEveryFixedUpdate)
+        if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
+        {
+            RemoveOneRandomTet();
+        }
+
+        simulationAccumulator += Time.deltaTime;
+
+        int steps = 0;
+
+        while (simulationAccumulator >= simulationDt && steps < maxSimulationStepsPerFrame)
+        {
+            StepSimulation(simulationDt);
+            simulationAccumulator -= simulationDt;
+            ++steps;
+        }
+
+        if (steps == maxSimulationStepsPerFrame)
+        {
+            simulationAccumulator = 0.0f;
+        }
+
+        if (drawSurface)
+        {
+            if (surfaceTopologyDirty)
+            {
+                RebuildSurfaceTopology();
+            }
+
+            UpdateSurfaceVertices();
+        }
+    }
+
+    private void StepSimulation(float dt)
+    {
+        if (applyGravityEveryStep)
         {
             ApplyGravityToNative();
         }
 
         AddBoundaryPointConnections();
 
-        PhysiKNative.PHYSIK_Step(world, Time.fixedDeltaTime);
-
-        UpdateVisuals();
+        PhysiKNative.PHYSIK_Step(world, dt);
     }
 
     private void CreateCircularTissueTetMesh()
     {
         if (material == null)
         {
-            Debug.LogError("PhysiK material is not assigned.", this);
+            UnityEngine.Debug.LogError("PhysiK material is not assigned.", this);
             enabled = false;
             return;
         }
@@ -189,7 +288,7 @@ public class PhysikCircularTissue : MonoBehaviour
 
         Dictionary<GridNodeKey, int> gridToLocalNode = new Dictionary<GridNodeKey, int>();
         List<int> globalNodes = new List<int>();
-        List<Vector3> localPositions = new List<Vector3>();
+        List<Vector3> initialWorldPositions = new List<Vector3>();
         List<int> tets = new List<int>();
 
         int GetOrCreateNode(int ix, int iz, int layer)
@@ -205,8 +304,7 @@ public class PhysikCircularTissue : MonoBehaviour
             float z = -radius + iz * cellSize;
             float y = layer == 0 ? -halfThickness : halfThickness;
 
-            Vector3 localPosition = new Vector3(x, y, z);
-            Vector3 worldPosition = origin + localPosition;
+            Vector3 worldPosition = origin + new Vector3(x, y, z);
 
             int globalNode = PhysiKNative.PHYSIK_AddNode(
                 world,
@@ -218,7 +316,7 @@ public class PhysikCircularTissue : MonoBehaviour
 
             gridToLocalNode.Add(key, localIndex);
             globalNodes.Add(globalNode);
-            localPositions.Add(worldPosition);
+            initialWorldPositions.Add(worldPosition);
 
             return localIndex;
         }
@@ -247,7 +345,6 @@ public class PhysikCircularTissue : MonoBehaviour
             int g6 = globalNodes[n6];
             int g7 = globalNodes[n7];
 
-            // Six tetrahedra filling one thin cube around diagonal 0 -> 7.
             AddTet(tets, g0, g3, g1, g7);
             AddTet(tets, g0, g2, g3, g7);
             AddTet(tets, g0, g6, g2, g7);
@@ -257,16 +354,19 @@ public class PhysikCircularTissue : MonoBehaviour
         }
 
         nodes = globalNodes.ToArray();
-        initialLocalPositions = localPositions.ToArray();
+        nodeWorldPositions = initialWorldPositions.ToArray();
         tetNodeIndices = tets.ToArray();
 
-        BuildBoundaryNodes(selectedCells, selectedCellSet, gridToLocalNode);
+        globalToLocalNode.Clear();
+
+        for (int i = 0; i < nodes.Length; ++i)
+        {
+            globalToLocalNode[nodes[i]] = i;
+        }
+
+        BuildBoundaryNodes(selectedCells, selectedCellSet, gridToLocalNode, nodeWorldPositions);
 
         PhysikMaterialDesc nativeMaterial = material.ToNative();
-
-        Debug.Log(
-            $"Creating circular tissue TetMesh. Grid={gridResolution}, cells={selectedCells.Count}, nodes={nodes.Length}, tets={tetNodeIndices.Length / 4}, FEM={femModel}",
-            this);
 
         tetMesh = PhysiKNative.PHYSIK_CreateTetMeshComponent(
             world,
@@ -281,7 +381,7 @@ public class PhysikCircularTissue : MonoBehaviour
 
         if (valid == 0)
         {
-            Debug.LogError("Circular tissue TetMesh component creation failed.", this);
+            UnityEngine.Debug.LogError("Circular tissue TetMesh component creation failed.", this);
             enabled = false;
             return;
         }
@@ -289,15 +389,16 @@ public class PhysikCircularTissue : MonoBehaviour
         int totalTetCount = tetNodeIndices.Length / 4;
         int activeTetCount = PhysiKNative.PHYSIK_GetActiveTetCount(world, tetMesh);
 
-        Debug.Log(
-            $"Tissue created: totalTets={totalTetCount}, activeTets={activeTetCount}, nodes={nodes.Length}",
+        UnityEngine.Debug.Log(
+            $"Tissue created: totalTets={totalTetCount}, activeTets={activeTetCount}, nodes={nodes.Length}, gridResolution={gridResolution}",
             this);
     }
 
     private void BuildBoundaryNodes(
         List<Vector2Int> selectedCells,
         HashSet<Vector2Int> selectedCellSet,
-        Dictionary<GridNodeKey, int> gridToLocalNode)
+        Dictionary<GridNodeKey, int> gridToLocalNode,
+        Vector3[] initialPositions)
     {
         HashSet<int> boundaryLocalNodes = new HashSet<int>();
 
@@ -342,14 +443,13 @@ public class PhysikCircularTissue : MonoBehaviour
 
         boundaryLocalNodeIndices = new int[boundaryLocalNodes.Count];
         boundaryLocalNodes.CopyTo(boundaryLocalNodeIndices);
-
         Array.Sort(boundaryLocalNodeIndices);
 
         boundaryAnchorPositions = new Vector3[boundaryLocalNodeIndices.Length];
 
         for (int i = 0; i < boundaryLocalNodeIndices.Length; ++i)
         {
-            boundaryAnchorPositions[i] = initialLocalPositions[boundaryLocalNodeIndices[i]];
+            boundaryAnchorPositions[i] = initialPositions[boundaryLocalNodeIndices[i]];
         }
     }
 
@@ -425,13 +525,12 @@ public class PhysikCircularTissue : MonoBehaviour
 
         if (activeBefore <= 0)
         {
-            Debug.Log("No active tets left to remove.", this);
+            UnityEngine.Debug.Log("No active tets left to remove.", this);
             return;
         }
 
         int selectedTet = -1;
 
-        // First try random attempts.
         for (int attempt = 0; attempt < 64; ++attempt)
         {
             int candidate = random.Next(0, totalTetCount);
@@ -443,7 +542,6 @@ public class PhysikCircularTissue : MonoBehaviour
             }
         }
 
-        // Fallback: linear scan.
         if (selectedTet < 0)
         {
             for (int tet = 0; tet < totalTetCount; ++tet)
@@ -458,111 +556,142 @@ public class PhysikCircularTissue : MonoBehaviour
 
         if (selectedTet < 0)
         {
-            Debug.Log("Could not find an active tet to remove.", this);
+            UnityEngine.Debug.Log("Could not find an active tet to remove.", this);
             return;
         }
 
         PhysiKNative.PHYSIK_DeactivateTet(world, tetMesh, selectedTet);
 
         int activeAfter = PhysiKNative.PHYSIK_GetActiveTetCount(world, tetMesh);
+        int removedCount = activeBefore - activeAfter;
 
-        Debug.Log(
-            $"Removed random tet {selectedTet}. Active tets: {activeAfter}/{totalTetCount}",
+        surfaceTopologyDirty = true;
+
+        UnityEngine.Debug.Log(
+            $"Removed random tet {selectedTet}. " +
+            $"Removed={removedCount}, " +
+            $"activeTets={activeAfter}, " +
+            $"removedTets={totalTetCount - activeAfter}, " +
+            $"totalTets={totalTetCount}",
             this);
-
-        UpdateVisuals();
     }
 
-    private void CreateVisuals()
+    private void CreateSurfaceVisual()
     {
-        if (drawNodes)
+        surfaceObject = new GameObject("PhysiK_Tissue_Surface");
+        surfaceObject.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+
+        surfaceMeshFilter = surfaceObject.AddComponent<MeshFilter>();
+        surfaceMeshRenderer = surfaceObject.AddComponent<MeshRenderer>();
+
+        surfaceMesh = new Mesh
         {
-            nodeVisuals = new Transform[nodes.Length];
+            name = "PhysiK_Tissue_Surface_Mesh",
+            indexFormat = UnityEngine.Rendering.IndexFormat.UInt32
+        };
 
-            for (int i = 0; i < nodeVisuals.Length; ++i)
-            {
-                GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                sphere.name = $"PhysiK_Tissue_Node_{i}";
-                sphere.transform.localScale = Vector3.one * nodeRadius;
+        surfaceMesh.MarkDynamic();
 
-                Collider collider = sphere.GetComponent<Collider>();
-                if (collider != null)
-                {
-                    Destroy(collider);
-                }
+        surfaceMeshFilter.sharedMesh = surfaceMesh;
 
-                nodeVisuals[i] = sphere.transform;
-            }
-        }
-
-        if (drawTetEdges)
+        if (surfaceMaterial != null)
         {
-            CreateTetEdgeVisuals();
+            surfaceMeshRenderer.sharedMaterial = surfaceMaterial;
         }
     }
 
-    private void CreateTetEdgeVisuals()
+    private void RebuildSurfaceTopology()
     {
-        tetEdgeVisuals.Clear();
-
-        Dictionary<int, int> globalToLocal = new Dictionary<int, int>();
-
-        for (int i = 0; i < nodes.Length; ++i)
+        if (surfaceMesh == null || tetNodeIndices == null || nodes == null)
         {
-            globalToLocal[nodes[i]] = i;
+            return;
         }
+
+        Dictionary<FaceKey, int> faceCounts = new Dictionary<FaceKey, int>();
+        Dictionary<FaceKey, Face> faceRepresentatives = new Dictionary<FaceKey, Face>();
 
         int tetCount = tetNodeIndices.Length / 4;
 
         for (int tet = 0; tet < tetCount; ++tet)
         {
+            if (PhysiKNative.PHYSIK_IsTetActive(world, tetMesh, tet) == 0)
+            {
+                continue;
+            }
+
             int baseIndex = tet * 4;
 
-            int a = globalToLocal[tetNodeIndices[baseIndex + 0]];
-            int b = globalToLocal[tetNodeIndices[baseIndex + 1]];
-            int c = globalToLocal[tetNodeIndices[baseIndex + 2]];
-            int d = globalToLocal[tetNodeIndices[baseIndex + 3]];
+            int a = globalToLocalNode[tetNodeIndices[baseIndex + 0]];
+            int b = globalToLocalNode[tetNodeIndices[baseIndex + 1]];
+            int c = globalToLocalNode[tetNodeIndices[baseIndex + 2]];
+            int d = globalToLocalNode[tetNodeIndices[baseIndex + 3]];
 
-            AddTetEdgeVisual(tet, a, b);
-            AddTetEdgeVisual(tet, a, c);
-            AddTetEdgeVisual(tet, a, d);
-            AddTetEdgeVisual(tet, b, c);
-            AddTetEdgeVisual(tet, b, d);
-            AddTetEdgeVisual(tet, c, d);
+            AddFace(faceCounts, faceRepresentatives, a, b, c);
+            AddFace(faceCounts, faceRepresentatives, a, b, d);
+            AddFace(faceCounts, faceRepresentatives, a, c, d);
+            AddFace(faceCounts, faceRepresentatives, b, c, d);
+        }
+
+        List<int> triangles = new List<int>();
+
+        foreach (KeyValuePair<FaceKey, int> pair in faceCounts)
+        {
+            if (pair.Value != 1)
+            {
+                continue;
+            }
+
+            Face face = faceRepresentatives[pair.Key];
+
+            triangles.Add(face.a);
+            triangles.Add(face.b);
+            triangles.Add(face.c);
+
+            if (doubleSidedSurface)
+            {
+                triangles.Add(face.a);
+                triangles.Add(face.c);
+                triangles.Add(face.b);
+            }
+        }
+
+        surfaceTriangles = triangles.ToArray();
+
+        surfaceMesh.Clear();
+        surfaceMesh.vertices = nodeWorldPositions;
+        surfaceMesh.triangles = surfaceTriangles;
+        surfaceMesh.RecalculateNormals();
+        surfaceMesh.RecalculateBounds();
+
+        surfaceTopologyDirty = false;
+    }
+
+    private static void AddFace(
+        Dictionary<FaceKey, int> faceCounts,
+        Dictionary<FaceKey, Face> faceRepresentatives,
+        int a,
+        int b,
+        int c)
+    {
+        FaceKey key = new FaceKey(a, b, c);
+
+        if (faceCounts.TryGetValue(key, out int count))
+        {
+            faceCounts[key] = count + 1;
+        }
+        else
+        {
+            faceCounts.Add(key, 1);
+            faceRepresentatives.Add(key, new Face(a, b, c));
         }
     }
 
-    private void AddTetEdgeVisual(int tetIndex, int localA, int localB)
+    private void UpdateSurfaceVertices()
     {
-        GameObject edge = new GameObject($"PhysiK_Tissue_Tet_{tetIndex}_Edge");
-        LineRenderer line = edge.AddComponent<LineRenderer>();
-
-        line.positionCount = 2;
-        line.widthMultiplier = edgeWidth;
-        line.useWorldSpace = true;
-
-        if (lineMaterial != null)
-        {
-            line.material = lineMaterial;
-        }
-
-        tetEdgeVisuals.Add(new TetEdgeVisual
-        {
-            tetIndex = tetIndex,
-            localNodeA = localA,
-            localNodeB = localB,
-            line = line
-        });
-    }
-
-    private void UpdateVisuals()
-    {
-        if (world == IntPtr.Zero || nodes == null)
+        if (surfaceMesh == null || nodes == null || nodeWorldPositions == null)
         {
             return;
         }
-
-        Vector3[] positions = new Vector3[nodes.Length];
 
         for (int i = 0; i < nodes.Length; ++i)
         {
@@ -573,38 +702,18 @@ public class PhysikCircularTissue : MonoBehaviour
                 out float y,
                 out float z);
 
-            positions[i] = new Vector3(x, y, z);
-
-            if (nodeVisuals != null && i < nodeVisuals.Length && nodeVisuals[i] != null)
-            {
-                nodeVisuals[i].position = positions[i];
-            }
+            nodeWorldPositions[i] = new Vector3(x, y, z);
         }
 
-        if (!drawTetEdges)
+        surfaceMesh.vertices = nodeWorldPositions;
+
+        if (surfaceTriangles != null)
         {
-            return;
+            surfaceMesh.triangles = surfaceTriangles;
         }
 
-        for (int i = 0; i < tetEdgeVisuals.Count; ++i)
-        {
-            TetEdgeVisual edge = tetEdgeVisuals[i];
-
-            if (edge.line == null)
-            {
-                continue;
-            }
-
-            bool active = PhysiKNative.PHYSIK_IsTetActive(world, tetMesh, edge.tetIndex) != 0;
-
-            edge.line.enabled = active;
-
-            if (active)
-            {
-                edge.line.SetPosition(0, positions[edge.localNodeA]);
-                edge.line.SetPosition(1, positions[edge.localNodeB]);
-            }
-        }
+        surfaceMesh.RecalculateNormals();
+        surfaceMesh.RecalculateBounds();
     }
 
     private void ApplyGravityToNative()
@@ -622,7 +731,7 @@ public class PhysikCircularTissue : MonoBehaviour
     {
         if (!Application.isPlaying)
         {
-            Debug.Log("Enter Play Mode first.", this);
+            UnityEngine.Debug.Log("Enter Play Mode first.", this);
             return;
         }
 
@@ -634,13 +743,13 @@ public class PhysikCircularTissue : MonoBehaviour
     {
         if (!Application.isPlaying)
         {
-            Debug.Log("Enter Play Mode first. Native world does not exist yet.", this);
+            UnityEngine.Debug.Log("Enter Play Mode first. Native world does not exist yet.", this);
             return;
         }
 
         ApplyGravityToNative();
 
-        Debug.Log(
+        UnityEngine.Debug.Log(
             $"Gravity applied to native: ({gravity.x:F6}, {gravity.y:F6}, {gravity.z:F6})",
             this);
     }
@@ -650,7 +759,7 @@ public class PhysikCircularTissue : MonoBehaviour
     {
         gravity = new Vector3(0.0f, -9.81f, 0.0f);
 
-        Debug.Log(
+        UnityEngine.Debug.Log(
             $"Gravity reset to Unity default: ({gravity.x:F6}, {gravity.y:F6}, {gravity.z:F6})",
             this);
     }
@@ -663,30 +772,10 @@ public class PhysikCircularTissue : MonoBehaviour
             world = IntPtr.Zero;
         }
 
-        DestroyVisuals();
+        if (surfaceObject != null)
+        {
+            Destroy(surfaceObject);
+        }
     }
 
-    private void DestroyVisuals()
-    {
-        if (nodeVisuals != null)
-        {
-            for (int i = 0; i < nodeVisuals.Length; ++i)
-            {
-                if (nodeVisuals[i] != null)
-                {
-                    Destroy(nodeVisuals[i].gameObject);
-                }
-            }
-        }
-
-        for (int i = 0; i < tetEdgeVisuals.Count; ++i)
-        {
-            if (tetEdgeVisuals[i].line != null)
-            {
-                Destroy(tetEdgeVisuals[i].line.gameObject);
-            }
-        }
-
-        tetEdgeVisuals.Clear();
-    }
 }
