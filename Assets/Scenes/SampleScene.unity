@@ -524,13 +524,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 534247e0e27fe4749a378ae7ac1fab76, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PhysiKTetDemo
-  substeps: 5
+  substeps: 2
   useImplicitEuler: 1
-  cubeSize: 1
+  gravity: {x: 0, y: -9.81, z: 0}
+  applyGravityEveryFixedUpdate: 1
+  beamSegments: 6
+  beamLength: 4
+  beamHeight: 0.45
+  beamDepth: 0.45
   material: {fileID: 11400000, guid: 027f2fead9004894495bb1c1afaae40b, type: 2}
   femModel: 1
-  anchorStiffness: 250
-  anchorDamping: 10
+  anchorStiffness: 1000000
+  anchorDamping: 0.1
   nodeRadius: 0.08
   edgeWidth: 0.02
 --- !u!1660057539 &9223372036854775807

@@ -6,32 +6,37 @@ using PhysiK.Unity;
 public sealed class PhysiKTetDemo : MonoBehaviour
 {
     [Header("PhysiK")]
-    [SerializeField] private int substeps = 8;
-    [SerializeField] private bool useImplicitEuler = false;
+    [SerializeField] private int substeps = 12;
+    [SerializeField] private bool useImplicitEuler = true;
 
-    // Unity convention: Y up, so gravity is usually negative Y.
-    // If your native engine uses the opposite sign, flip this to +9.81.
-    private Vector3 gravity = new Vector3(9.0f, 9.81f, 0.0f);
+    [Header("Gravity")]
+    [SerializeField] private Vector3 gravity = new Vector3(0.0f, -9.81f, 0.0f);
+    [SerializeField] private bool applyGravityEveryFixedUpdate = true;
 
-    [Header("Cube Tet Mesh")]
-    [SerializeField] private float cubeSize = 1.0f;
+    [Header("Beam Tet Mesh")]
+    [SerializeField] private int beamSegments = 6;
+    [SerializeField] private float beamLength = 4.0f;
+    [SerializeField] private float beamHeight = 0.45f;
+    [SerializeField] private float beamDepth = 0.45f;
+
+    [Header("FEM")]
     [SerializeField] private PhysikMaterialAsset material;
     [SerializeField] private PhysiKFemModel femModel = PhysiKFemModel.Corotational;
 
-    [Header("Bottom Anchor Point Connections")]
-    [SerializeField] private float anchorStiffness = 5000.0f;
-    [SerializeField] private float anchorDamping = 50.0f;
+    [Header("Left End Point Connections")]
+    [SerializeField] private float anchorStiffness = 20000.0f;
+    [SerializeField] private float anchorDamping = 200.0f;
 
     [Header("Visual")]
-    [SerializeField] private float nodeRadius = 0.06f;
-    [SerializeField] private float edgeWidth = 0.02f;
+    [SerializeField] private float nodeRadius = 0.045f;
+    [SerializeField] private float edgeWidth = 0.018f;
 
     private IntPtr world = IntPtr.Zero;
     private PhysiKComponentHandle tetMesh;
 
     private int[] nodes;
-    private int[] bottomNodeLocalIndices;
-    private Vector3[] bottomAnchors;
+    private int[] leftEndLocalNodeIndices;
+    private Vector3[] leftEndAnchors;
 
     private int[] tetNodeIndices;
     private int[,] visualEdges;
@@ -45,73 +50,108 @@ public sealed class PhysiKTetDemo : MonoBehaviour
 
         if (world == IntPtr.Zero)
         {
-            Debug.LogError("Failed to create PhysiK world.");
+            Debug.LogError("Failed to create PhysiK world.", this);
             enabled = false;
             return;
         }
 
         PhysiKNative.PHYSIK_SetSubstepCount(world, Mathf.Max(1, substeps));
         PhysiKNative.PHYSIK_SetSolverMode(world, useImplicitEuler ? 1 : 0);
-        PhysiKNative.PHYSIK_SetGravity(world, gravity.x, gravity.y, gravity.z);
 
-        CreateCubeTetMesh();
+        ApplyGravityToNative();
+
+        CreateBeamTetMesh();
         CreateVisuals();
         UpdateVisuals();
 
-        Debug.Log("PhysiK cube tet demo created.");
+        Debug.Log(
+            $"PhysiK beam tet demo created. FEM={femModel}, segments={beamSegments}, tets={tetNodeIndices.Length / 4}",
+            this);
     }
 
-    private void CreateCubeTetMesh()
+    private void CreateBeamTetMesh()
     {
         if (material == null)
         {
-            Debug.LogError("PhysiK material is not assigned.");
+            Debug.LogError("PhysiK material is not assigned.", this);
             enabled = false;
             return;
         }
 
+        beamSegments = Mathf.Max(1, beamSegments);
+
         Vector3 origin = transform.position;
-        float s = cubeSize;
 
-        // Cube node layout:
-        // Bottom: 0, 1, 2, 3
-        // Top:    4, 5, 6, 7
-        Vector3[] localPositions =
+        int stationCount = beamSegments + 1;
+        int nodesPerStation = 4;
+
+        nodes = new int[stationCount * nodesPerStation];
+
+        float dx = beamLength / beamSegments;
+        float halfHeight = beamHeight * 0.5f;
+        float halfDepth = beamDepth * 0.5f;
+
+        for (int station = 0; station < stationCount; ++station)
         {
-            new Vector3(0.0f, 0.0f, 0.0f), // 0 bottom
-            new Vector3(s,    0.0f, 0.0f), // 1 bottom
-            new Vector3(0.0f, 0.0f, s),    // 2 bottom
-            new Vector3(s,    0.0f, s),    // 3 bottom
+            float x = station * dx;
 
-            new Vector3(0.0f, s,    0.0f), // 4 top
-            new Vector3(s,    s,    0.0f), // 5 top
-            new Vector3(0.0f, s,    s),    // 6 top
-            new Vector3(s,    s,    s),    // 7 top
-        };
+            Vector3[] stationLocalPositions =
+            {
+                new Vector3(x, -halfHeight, -halfDepth), // 0 lower/back
+                new Vector3(x, -halfHeight,  halfDepth), // 1 lower/front
+                new Vector3(x,  halfHeight, -halfDepth), // 2 upper/back
+                new Vector3(x,  halfHeight,  halfDepth), // 3 upper/front
+            };
 
-        nodes = new int[localPositions.Length];
+            for (int corner = 0; corner < nodesPerStation; ++corner)
+            {
+                int localIndex = StationNodeIndex(station, corner);
+                Vector3 p = origin + stationLocalPositions[corner];
 
-        for (int i = 0; i < localPositions.Length; ++i)
-        {
-            Vector3 p = origin + localPositions[i];
-            nodes[i] = PhysiKNative.PHYSIK_AddNode(world, p.x, p.y, p.z);
+                nodes[localIndex] = PhysiKNative.PHYSIK_AddNode(world, p.x, p.y, p.z);
+            }
         }
 
-        // Six positive-orientation tetrahedra filling the cube around diagonal 0 -> 7.
-        // Flattened as groups of 4 node indices.
-        tetNodeIndices = new[]
+        List<int> tets = new List<int>();
+
+        for (int segment = 0; segment < beamSegments; ++segment)
         {
-            nodes[0], nodes[3], nodes[1], nodes[7],
-            nodes[0], nodes[2], nodes[3], nodes[7],
-            nodes[0], nodes[6], nodes[2], nodes[7],
-            nodes[0], nodes[4], nodes[6], nodes[7],
-            nodes[0], nodes[5], nodes[4], nodes[7],
-            nodes[0], nodes[1], nodes[5], nodes[7],
-        };
+            int a0 = nodes[StationNodeIndex(segment, 0)];
+            int a1 = nodes[StationNodeIndex(segment, 1)];
+            int a2 = nodes[StationNodeIndex(segment, 2)];
+            int a3 = nodes[StationNodeIndex(segment, 3)];
+
+            int b0 = nodes[StationNodeIndex(segment + 1, 0)];
+            int b1 = nodes[StationNodeIndex(segment + 1, 1)];
+            int b2 = nodes[StationNodeIndex(segment + 1, 2)];
+            int b3 = nodes[StationNodeIndex(segment + 1, 3)];
+
+            // Cube mapping:
+            // old cube 0 = a0
+            // old cube 1 = b0
+            // old cube 2 = a1
+            // old cube 3 = b1
+            // old cube 4 = a2
+            // old cube 5 = b2
+            // old cube 6 = a3
+            // old cube 7 = b3
+            //
+            // Six tets around diagonal a0 -> b3.
+            AddTet(tets, a0, b1, b0, b3);
+            AddTet(tets, a0, a1, b1, b3);
+            AddTet(tets, a0, a3, a1, b3);
+            AddTet(tets, a0, a2, a3, b3);
+            AddTet(tets, a0, b2, a2, b3);
+            AddTet(tets, a0, b0, b2, b3);
+        }
+
+        tetNodeIndices = tets.ToArray();
 
         PhysikMaterialDesc nativeMaterial = material.ToNative();
 
-        Debug.Log($"Creating TetMesh with FEM model: {femModel}", this);
+        Debug.Log(
+            $"Creating beam TetMesh. FEM={femModel}, nodes={nodes.Length}, tets={tetNodeIndices.Length / 4}, gravity=({gravity.x:F4}, {gravity.y:F4}, {gravity.z:F4})",
+            this);
 
         tetMesh = PhysiKNative.PHYSIK_CreateTetMeshComponent(
             world,
@@ -126,21 +166,50 @@ public sealed class PhysiKTetDemo : MonoBehaviour
 
         if (valid == 0)
         {
-            Debug.LogError("Cube tet mesh component creation failed.");
+            Debug.LogError("Beam tet mesh component creation failed.", this);
             enabled = false;
             return;
         }
 
-        // Anchor the whole bottom face using transient point connections every physics step.
-        bottomNodeLocalIndices = new[] { 0, 1, 2, 3 };
-        bottomAnchors = new Vector3[bottomNodeLocalIndices.Length];
-
-        for (int i = 0; i < bottomNodeLocalIndices.Length; ++i)
+        // Anchor the left end of the beam using transient point connections.
+        leftEndLocalNodeIndices = new[]
         {
-            bottomAnchors[i] = origin + localPositions[bottomNodeLocalIndices[i]];
+            StationNodeIndex(0, 0),
+            StationNodeIndex(0, 1),
+            StationNodeIndex(0, 2),
+            StationNodeIndex(0, 3)
+        };
+
+        leftEndAnchors = new Vector3[leftEndLocalNodeIndices.Length];
+
+        for (int i = 0; i < leftEndLocalNodeIndices.Length; ++i)
+        {
+            int localNode = leftEndLocalNodeIndices[i];
+
+            PhysiKNative.PHYSIK_GetNodePosition(
+                world,
+                nodes[localNode],
+                out float x,
+                out float y,
+                out float z);
+
+            leftEndAnchors[i] = new Vector3(x, y, z);
         }
 
         visualEdges = BuildUniqueTetEdges(tetNodeIndices, nodes);
+    }
+
+    private int StationNodeIndex(int station, int corner)
+    {
+        return station * 4 + corner;
+    }
+
+    private static void AddTet(List<int> tets, int n0, int n1, int n2, int n3)
+    {
+        tets.Add(n0);
+        tets.Add(n1);
+        tets.Add(n2);
+        tets.Add(n3);
     }
 
     private static int[,] BuildUniqueTetEdges(int[] flattenedTetNodeIndices, int[] globalNodes)
@@ -199,7 +268,7 @@ public sealed class PhysiKTetDemo : MonoBehaviour
         for (int i = 0; i < nodeVisuals.Length; ++i)
         {
             GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            sphere.name = $"PhysiK_Cube_Node_{i}";
+            sphere.name = $"PhysiK_Beam_Node_{i}";
             sphere.transform.localScale = Vector3.one * nodeRadius;
             nodeVisuals[i] = sphere.transform;
         }
@@ -208,7 +277,7 @@ public sealed class PhysiKTetDemo : MonoBehaviour
 
         for (int i = 0; i < edgeVisuals.Length; ++i)
         {
-            GameObject edge = new GameObject($"PhysiK_Cube_Tet_Edge_{i}");
+            GameObject edge = new GameObject($"PhysiK_Beam_Tet_Edge_{i}");
             LineRenderer line = edge.AddComponent<LineRenderer>();
 
             line.positionCount = 2;
@@ -226,20 +295,25 @@ public sealed class PhysiKTetDemo : MonoBehaviour
             return;
         }
 
-        // Point connections are transient: push them every physics step.
-        for (int i = 0; i < bottomNodeLocalIndices.Length; ++i)
+        if (applyGravityEveryFixedUpdate)
         {
-            int localNodeIndex = bottomNodeLocalIndices[i];
-            AddAnchorConnection(nodes[localNodeIndex], bottomAnchors[i]);
+            ApplyGravityToNative();
+        }
+
+        // Point connections are transient: push them every physics step.
+        for (int i = 0; i < leftEndLocalNodeIndices.Length; ++i)
+        {
+            int localNodeIndex = leftEndLocalNodeIndices[i];
+            AddAnchorConnection(nodes[localNodeIndex], leftEndAnchors[i]);
         }
 
         PhysiKNative.PHYSIK_Step(world, Time.fixedDeltaTime);
+
         UpdateVisuals();
     }
 
     private void AddAnchorConnection(int node, Vector3 target)
     {
-        // For a direct node anchor, use the same node four times and barycentric (1, 0, 0, 0).
         PhysiKNative.PHYSIK_AddPointConnection(
             world,
             node, node, node, node,
@@ -249,9 +323,45 @@ public sealed class PhysiKTetDemo : MonoBehaviour
             anchorDamping);
     }
 
+    private void ApplyGravityToNative()
+    {
+        if (world == IntPtr.Zero)
+        {
+            return;
+        }
+
+        PhysiKNative.PHYSIK_SetGravity(world, gravity.x, gravity.y, gravity.z);
+    }
+
+    [ContextMenu("Apply Gravity To Native")]
+    private void ApplyGravityContextMenu()
+    {
+        if (!Application.isPlaying)
+        {
+            Debug.Log("Enter Play Mode first. Native world does not exist yet.", this);
+            return;
+        }
+
+        ApplyGravityToNative();
+
+        Debug.Log(
+            $"Gravity applied to native: ({gravity.x:F6}, {gravity.y:F6}, {gravity.z:F6})",
+            this);
+    }
+
+    [ContextMenu("Reset Gravity To Unity Default")]
+    private void ResetGravityToUnityDefault()
+    {
+        gravity = new Vector3(0.0f, -9.81f, 0.0f);
+
+        Debug.Log(
+            $"Gravity reset to Unity default: ({gravity.x:F6}, {gravity.y:F6}, {gravity.z:F6})",
+            this);
+    }
+
     private void UpdateVisuals()
     {
-        if (nodes == null || nodeVisuals == null)
+        if (world == IntPtr.Zero || nodes == null || nodeVisuals == null)
         {
             return;
         }
@@ -271,6 +381,11 @@ public sealed class PhysiKTetDemo : MonoBehaviour
             nodeVisuals[i].position = positions[i];
         }
 
+        if (edgeVisuals == null || visualEdges == null)
+        {
+            return;
+        }
+
         for (int i = 0; i < edgeVisuals.Length; ++i)
         {
             int a = visualEdges[i, 0];
@@ -287,6 +402,33 @@ public sealed class PhysiKTetDemo : MonoBehaviour
         {
             PhysiKNative.PHYSIK_DestroyWorld(world);
             world = IntPtr.Zero;
+        }
+
+        DestroyVisuals();
+    }
+
+    private void DestroyVisuals()
+    {
+        if (nodeVisuals != null)
+        {
+            for (int i = 0; i < nodeVisuals.Length; ++i)
+            {
+                if (nodeVisuals[i] != null)
+                {
+                    Destroy(nodeVisuals[i].gameObject);
+                }
+            }
+        }
+
+        if (edgeVisuals != null)
+        {
+            for (int i = 0; i < edgeVisuals.Length; ++i)
+            {
+                if (edgeVisuals[i] != null)
+                {
+                    Destroy(edgeVisuals[i].gameObject);
+                }
+            }
         }
     }
 }
