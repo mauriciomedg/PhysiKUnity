@@ -26,6 +26,15 @@ public enum PhysiKFemModel : uint
     NeoHookean = 2
 }
 
+public enum PhysikOverlapGeometryType
+{
+    Unknown = 0,
+    Tetrahedron = 1,
+    Triangle = 2,
+    Sphere = 3,
+    Node = 4
+}
+
 public static class PhysiKNative
 {
     private const string DllName = "PhysiK";
@@ -144,5 +153,61 @@ public static class PhysiKNative
     float targetZ,
     float stiffness,
     float damping);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PhysikCollisionSphereOverlap
+    {
+        public int geometryType;
+
+        public PhysiKComponentHandle component;
+        public int primitiveIndex;
+
+        public int node0;
+        public int node1;
+        public int node2;
+        public int node3;
+
+        public int overlappedNodeMask;
+        public int overlappedNodeCount;
+
+        public float sphereCenterX;
+        public float sphereCenterY;
+        public float sphereCenterZ;
+        public float sphereRadius;
+        public float minDistance;
+    }
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern PhysiKComponentHandle PHYSIK_CreateCollisionSphereComponent(
+        IntPtr world,
+        float x,
+        float y,
+        float z,
+        float radius);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void PHYSIK_SetCollisionComponentKinematicTarget(
+        IntPtr world,
+        PhysiKComponentHandle component,
+        float x,
+        float y,
+        float z);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_GetCollisionSphereOverlapCount(
+        IntPtr world,
+        PhysiKComponentHandle sphereComponent);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_GetCollisionSphereOverlaps(
+        IntPtr world,
+        PhysiKComponentHandle sphereComponent,
+        [Out] PhysikCollisionSphereOverlap[] outOverlaps,
+        int maxOverlaps);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void PHYSIK_DestroyComponent(
+        IntPtr world,
+        PhysiKComponentHandle component);
 
 }

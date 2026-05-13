@@ -95,6 +95,13 @@ public class PhysikCircularTissue : MonoBehaviour
     private int[] pointConnectionLineIndices;
     private Vector3[] pointConnectionLineVertices;
 
+
+    public IntPtr WorldHandle => world;
+    public PhysiKComponentHandle TetMeshHandle => tetMesh;
+
+    public float TissuePlaneY => transform.position.y;
+
+
     private readonly struct FaceKey : IEquatable<FaceKey>
     {
         public readonly int a;
@@ -563,6 +570,22 @@ public class PhysikCircularTissue : MonoBehaviour
         return false;
     }
 
+    public bool DeactivateTet(int tetIndex)
+    {
+        if (world == IntPtr.Zero || tetNodeIndices == null)
+            return false;
+
+        if (tetIndex < 0 || tetIndex >= tetNodeIndices.Length / 4)
+            return false;
+
+        if (PhysiKNative.PHYSIK_IsTetActive(world, tetMesh, tetIndex) == 0)
+            return false;
+
+        PhysiKNative.PHYSIK_DeactivateTet(world, tetMesh, tetIndex);
+        topologyDirty = true;
+
+        return true;
+    }
     private void RemoveOneRandomTet()
     {
         if (world == IntPtr.Zero || tetNodeIndices == null)
