@@ -17,6 +17,10 @@ public sealed class PhysikTool : MonoBehaviour
     [SerializeField] private bool cutContinuously = true;
     [SerializeField] private int maxCutsPerFrame = 8;
 
+    [Header("Physical Interaction")]
+    [SerializeField] private float connectionStiffness = 10000.0f;
+    [SerializeField] private float connectionDamping = 0.0f;
+
     [Header("Visual")]
     [SerializeField] private MeshRenderer visualRenderer;
 
@@ -85,8 +89,25 @@ public sealed class PhysikTool : MonoBehaviour
             enabled = false;
             return;
         }
+
+        PhysiKNative.PHYSIK_SetCollisionSphereConnectionSettings(
+            tissue.WorldHandle,
+            sphereComponent,
+            connectionStiffness,
+            connectionDamping);
     }
 
+    private void ApplyConnectionSettings()
+    {
+        if (!hasNativeSphere || tissue == null || tissue.WorldHandle == IntPtr.Zero)
+            return;
+
+        PhysiKNative.PHYSIK_SetCollisionSphereConnectionSettings(
+            tissue.WorldHandle,
+            sphereComponent,
+            connectionStiffness,
+            connectionDamping);
+    }
     private void Update()
     {
         if (!hasNativeSphere || tissue == null || tissue.WorldHandle == IntPtr.Zero)
@@ -94,12 +115,20 @@ public sealed class PhysikTool : MonoBehaviour
             return;
         }
 
+        ApplyConnectionSettings();
         UpdateMousePosition();
         PushNativeSpherePosition();
 
+        bool isCPressed =
+        Keyboard.current != null &&
+        Keyboard.current.cKey.isPressed;
+
         bool shouldCut =
-            cutContinuously ||
-            (cutWhileMouseHeld && Mouse.current != null && Mouse.current.leftButton.isPressed);
+            isCPressed &&
+            (
+                cutContinuously ||
+                (cutWhileMouseHeld && Mouse.current != null && Mouse.current.leftButton.isPressed)
+            );
 
         if (shouldCut)
         {

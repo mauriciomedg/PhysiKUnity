@@ -210,4 +210,18 @@ public static class PhysiKNative
         IntPtr world,
         PhysiKComponentHandle component);
 
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void PHYSIK_SetCollisionSphereConnectionSettings(
+        IntPtr world,
+        PhysiKComponentHandle sphereComponent,
+        float stiffness,
+        float damping);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void PHYSIK_GetCollisionSphereConnectionSettings(
+        IntPtr world,
+        PhysiKComponentHandle sphereComponent,
+        out float stiffness,
+        out float damping);
+
 }
