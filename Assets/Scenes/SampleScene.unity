@@ -165,15 +165,15 @@ MonoBehaviour:
   radialBoundaryOffset: 5
   randomSeed: 12345
   avoidBoundaryTetsWhenCutting: 1
-  drawSurface: 0
-  surfaceMaterial: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}
+  drawSurface: 1
+  surfaceMaterial: {fileID: 2100000, guid: 9f9e17e9adb2f9140a536c17ff1a707a, type: 2}
   doubleSidedSurface: 0
-  drawWireframe: 1
+  drawWireframe: 0
   wireframeMaterial: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}
-  drawBoundaryMarkers: 1
+  drawBoundaryMarkers: 0
   boundaryMarkerMaterial: {fileID: 10306, guid: 0000000000000000f000000000000000, type: 0}
   boundaryMarkerRadius: 0.035
-  drawPointConnectionLines: 1
+  drawPointConnectionLines: 0
   pointConnectionLineMaterial: {fileID: 10306, guid: 0000000000000000f000000000000000, type: 0}
 --- !u!4 &188124103
 Transform:
@@ -472,7 +472,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!135 &627481761
 SphereCollider:
   m_ObjectHideFlags: 0
