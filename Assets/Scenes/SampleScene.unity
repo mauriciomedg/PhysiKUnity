@@ -276,13 +276,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.55837345, y: -0, z: -0, w: 0.8295897}
-  m_LocalPosition: {x: 4.4, y: 24.9, z: -14.3}
+  m_LocalRotation: {x: 0.37554255, y: -0, z: -0, w: 0.92680514}
+  m_LocalPosition: {x: 4.4, y: 15.4, z: -18.8}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 67.887, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 44.116, y: 0, z: 0}
 --- !u!114 &330585547
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -418,13 +418,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 410087039}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.40821788, y: -0.23456968, z: 0.10938163, w: 0.8754261}
-  m_LocalPosition: {x: 0, y: 3, z: 0}
+  m_LocalRotation: {x: 0.29071102, y: -0.24681883, z: 0.07789577, w: 0.9211405}
+  m_LocalPosition: {x: 2.5, y: -2.2, z: -4.5}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
+  m_LocalEulerAnglesHint: {x: 35.031, y: -30, z: 0}
 --- !u!114 &410087042
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -710,11 +710,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PhysikTool
   tissue: {fileID: 0}
   sceneCamera: {fileID: 0}
-  radius: 0.12
   heightOffset: 0
   cutWhileMouseHeld: 1
   cutContinuously: 1
   maxCutsPerFrame: 8
+  connectionStiffness: 10000
+  connectionDamping: 0
   visualRenderer: {fileID: 0}
 --- !u!135 &1843447744
 SphereCollider:

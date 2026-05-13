@@ -15,4 +15,4 @@ MonoBehaviour:
   density: 1
   youngModulus: 4000
   poissonRatio: 0.3
-  damping: 0.01
+  damping: 0.02
