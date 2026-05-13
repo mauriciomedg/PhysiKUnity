@@ -41,6 +41,17 @@ public class PhysikCircularTissue : MonoBehaviour
     [SerializeField] private Material surfaceMaterial;
     [SerializeField] private bool doubleSidedSurface = true;
 
+    [SerializeField] private bool drawWireframe = true;
+    [SerializeField] private Material wireframeMaterial;
+
+    [SerializeField] private bool drawBoundaryMarkers = true;
+    [SerializeField] private Material boundaryMarkerMaterial;
+    [SerializeField] private float boundaryMarkerRadius = 0.035f;
+
+    [Header("Point Connection Lines")]
+    [SerializeField] private bool drawPointConnectionLines = true;
+    [SerializeField] private Material pointConnectionLineMaterial;
+
     private IntPtr world = IntPtr.Zero;
     private PhysiKComponentHandle tetMesh;
 
@@ -63,6 +74,24 @@ public class PhysikCircularTissue : MonoBehaviour
 
     private int[] surfaceTriangles;
     private bool surfaceTopologyDirty = true;
+    private GameObject wireframeObject;
+    private Mesh wireframeMesh;
+    private MeshFilter wireframeMeshFilter;
+    private MeshRenderer wireframeMeshRenderer;
+    private int[] wireframeLineIndices;
+
+    private GameObject boundaryMarkerObject;
+    private Mesh boundaryMarkerMesh;
+    private MeshFilter boundaryMarkerMeshFilter;
+    private MeshRenderer boundaryMarkerMeshRenderer;
+    private int[] boundaryMarkerTriangles;
+
+    private GameObject pointConnectionLineObject;
+    private Mesh pointConnectionLineMesh;
+    private MeshFilter pointConnectionLineMeshFilter;
+    private MeshRenderer pointConnectionLineMeshRenderer;
+    private int[] pointConnectionLineIndices;
+    private Vector3[] pointConnectionLineVertices;
 
     private readonly struct GridNodeKey : IEquatable<GridNodeKey>
     {
@@ -190,6 +219,27 @@ public class PhysikCircularTissue : MonoBehaviour
             UpdateSurfaceVertices();
         }
 
+        if (drawWireframe)
+        {
+            CreateWireframeVisual();
+            RebuildWireframeTopology();
+            UpdateWireframeVertices();
+        }
+
+        if (drawBoundaryMarkers)
+        {
+            CreateBoundaryMarkerVisual();
+            RebuildBoundaryMarkerTopology();
+            UpdateBoundaryMarkerVertices();
+        }
+
+        if (drawPointConnectionLines)
+        {
+            CreatePointConnectionLineVisual();
+            RebuildPointConnectionLineTopology();
+            UpdatePointConnectionLineVertices();
+        }
+
         int totalTetCount = tetNodeIndices.Length / 4;
         int activeTetCount = PhysiKNative.PHYSIK_GetActiveTetCount(world, tetMesh);
 
@@ -226,15 +276,39 @@ public class PhysikCircularTissue : MonoBehaviour
             simulationAccumulator = 0.0f;
         }
 
+        bool rebuildTopology = surfaceTopologyDirty;
+
         if (drawSurface)
         {
-            if (surfaceTopologyDirty)
+            if (rebuildTopology)
             {
                 RebuildSurfaceTopology();
             }
 
             UpdateSurfaceVertices();
         }
+
+        if (drawWireframe)
+        {
+            if (rebuildTopology)
+            {
+                RebuildWireframeTopology();
+            }
+
+            UpdateWireframeVertices();
+        }
+
+        if (drawBoundaryMarkers)
+        {
+            UpdateBoundaryMarkerVertices();
+        }
+
+        if (drawPointConnectionLines)
+        {
+            UpdatePointConnectionLineVertices();
+        }
+
+        surfaceTopologyDirty = false;
     }
 
     private void StepSimulation(float dt)
@@ -249,6 +323,253 @@ public class PhysikCircularTissue : MonoBehaviour
         PhysiKNative.PHYSIK_Step(world, dt);
     }
 
+    private void CreateWireframeVisual()
+    {
+        wireframeObject = new GameObject("PhysiK_Tissue_Wireframe");
+        wireframeObject.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+
+        wireframeMeshFilter = wireframeObject.AddComponent<MeshFilter>();
+        wireframeMeshRenderer = wireframeObject.AddComponent<MeshRenderer>();
+
+        wireframeMesh = new Mesh
+        {
+            name = "PhysiK_Tissue_Wireframe_Mesh",
+            indexFormat = UnityEngine.Rendering.IndexFormat.UInt32
+        };
+
+        wireframeMesh.MarkDynamic();
+        wireframeMeshFilter.sharedMesh = wireframeMesh;
+
+        if (wireframeMaterial != null)
+        {
+            wireframeMeshRenderer.sharedMaterial = wireframeMaterial;
+        }
+    }
+
+    private void RebuildWireframeTopology()
+    {
+        if (wireframeMesh == null || tetNodeIndices == null || nodes == null)
+        {
+            return;
+        }
+
+        HashSet<(int, int)> uniqueEdges = new HashSet<(int, int)>();
+
+        int tetCount = tetNodeIndices.Length / 4;
+
+        for (int tet = 0; tet < tetCount; ++tet)
+        {
+            if (PhysiKNative.PHYSIK_IsTetActive(world, tetMesh, tet) == 0)
+            {
+                continue;
+            }
+
+            int baseIndex = tet * 4;
+
+            int a = globalToLocalNode[tetNodeIndices[baseIndex + 0]];
+            int b = globalToLocalNode[tetNodeIndices[baseIndex + 1]];
+            int c = globalToLocalNode[tetNodeIndices[baseIndex + 2]];
+            int d = globalToLocalNode[tetNodeIndices[baseIndex + 3]];
+
+            AddWireEdge(uniqueEdges, a, b);
+            AddWireEdge(uniqueEdges, a, c);
+            AddWireEdge(uniqueEdges, a, d);
+            AddWireEdge(uniqueEdges, b, c);
+            AddWireEdge(uniqueEdges, b, d);
+            AddWireEdge(uniqueEdges, c, d);
+        }
+
+        List<int> lines = new List<int>(uniqueEdges.Count * 2);
+
+        foreach ((int a, int b) in uniqueEdges)
+        {
+            lines.Add(a);
+            lines.Add(b);
+        }
+
+        wireframeLineIndices = lines.ToArray();
+
+        wireframeMesh.Clear();
+        wireframeMesh.vertices = nodeWorldPositions;
+        wireframeMesh.SetIndices(wireframeLineIndices, MeshTopology.Lines, 0);
+        wireframeMesh.RecalculateBounds();
+    }
+
+    private static void AddWireEdge(HashSet<(int, int)> edges, int a, int b)
+    {
+        if (a > b)
+        {
+            (a, b) = (b, a);
+        }
+
+        edges.Add((a, b));
+    }
+
+    private void UpdateWireframeVertices()
+    {
+        if (wireframeMesh == null || nodes == null || nodeWorldPositions == null)
+        {
+            return;
+        }
+
+        // nodeWorldPositions is already refreshed by UpdateSurfaceVertices if surface is enabled.
+        // If surface is disabled, refresh node positions here.
+        if (!drawSurface)
+        {
+            for (int i = 0; i < nodes.Length; ++i)
+            {
+                PhysiKNative.PHYSIK_GetNodePosition(
+                    world,
+                    nodes[i],
+                    out float x,
+                    out float y,
+                    out float z);
+
+                nodeWorldPositions[i] = new Vector3(x, y, z);
+            }
+        }
+
+        wireframeMesh.vertices = nodeWorldPositions;
+
+        if (wireframeLineIndices != null)
+        {
+            wireframeMesh.SetIndices(wireframeLineIndices, MeshTopology.Lines, 0);
+        }
+
+        wireframeMesh.RecalculateBounds();
+    }
+
+    private void CreateBoundaryMarkerVisual()
+    {
+        boundaryMarkerObject = new GameObject("PhysiK_PointConnected_Boundary_Nodes");
+        boundaryMarkerObject.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+
+        boundaryMarkerMeshFilter = boundaryMarkerObject.AddComponent<MeshFilter>();
+        boundaryMarkerMeshRenderer = boundaryMarkerObject.AddComponent<MeshRenderer>();
+
+        boundaryMarkerMesh = new Mesh
+        {
+            name = "PhysiK_PointConnected_Boundary_Nodes_Mesh",
+            indexFormat = UnityEngine.Rendering.IndexFormat.UInt32
+        };
+
+        boundaryMarkerMesh.MarkDynamic();
+        boundaryMarkerMeshFilter.sharedMesh = boundaryMarkerMesh;
+
+        if (boundaryMarkerMaterial != null)
+        {
+            boundaryMarkerMeshRenderer.sharedMaterial = boundaryMarkerMaterial;
+        }
+    }
+
+    private void RebuildBoundaryMarkerTopology()
+    {
+        if (boundaryMarkerMesh == null || boundaryLocalNodeIndices == null)
+        {
+            return;
+        }
+
+        int markerCount = boundaryLocalNodeIndices.Length;
+
+        // Each marker is a tiny octahedron:
+        // 6 vertices, 8 triangles.
+        Vector3[] vertices = new Vector3[markerCount * 6];
+        List<int> triangles = new List<int>(markerCount * 8 * 3);
+
+        for (int i = 0; i < markerCount; ++i)
+        {
+            int baseVertex = i * 6;
+
+            // Placeholder positions. Real positions are updated in UpdateBoundaryMarkerVertices().
+            vertices[baseVertex + 0] = Vector3.zero; // +X
+            vertices[baseVertex + 1] = Vector3.zero; // -X
+            vertices[baseVertex + 2] = Vector3.zero; // +Y
+            vertices[baseVertex + 3] = Vector3.zero; // -Y
+            vertices[baseVertex + 4] = Vector3.zero; // +Z
+            vertices[baseVertex + 5] = Vector3.zero; // -Z
+
+            int px = baseVertex + 0;
+            int nx = baseVertex + 1;
+            int py = baseVertex + 2;
+            int ny = baseVertex + 3;
+            int pz = baseVertex + 4;
+            int nz = baseVertex + 5;
+
+            // Top half
+            triangles.Add(py); triangles.Add(px); triangles.Add(pz);
+            triangles.Add(py); triangles.Add(pz); triangles.Add(nx);
+            triangles.Add(py); triangles.Add(nx); triangles.Add(nz);
+            triangles.Add(py); triangles.Add(nz); triangles.Add(px);
+
+            // Bottom half
+            triangles.Add(ny); triangles.Add(pz); triangles.Add(px);
+            triangles.Add(ny); triangles.Add(nx); triangles.Add(pz);
+            triangles.Add(ny); triangles.Add(nz); triangles.Add(nx);
+            triangles.Add(ny); triangles.Add(px); triangles.Add(nz);
+        }
+
+        boundaryMarkerTriangles = triangles.ToArray();
+
+        boundaryMarkerMesh.Clear();
+        boundaryMarkerMesh.vertices = vertices;
+        boundaryMarkerMesh.triangles = boundaryMarkerTriangles;
+        boundaryMarkerMesh.RecalculateNormals();
+        boundaryMarkerMesh.RecalculateBounds();
+    }
+
+    private void UpdateBoundaryMarkerVertices()
+    {
+        if (boundaryMarkerMesh == null ||
+            boundaryLocalNodeIndices == null ||
+            nodes == null)
+        {
+            return;
+        }
+
+        int markerCount = boundaryLocalNodeIndices.Length;
+        Vector3[] vertices = boundaryMarkerMesh.vertices;
+
+        if (vertices == null || vertices.Length != markerCount * 6)
+        {
+            RebuildBoundaryMarkerTopology();
+            vertices = boundaryMarkerMesh.vertices;
+        }
+
+        float r = Mathf.Max(0.001f, boundaryMarkerRadius);
+
+        for (int i = 0; i < markerCount; ++i)
+        {
+            int localNode = boundaryLocalNodeIndices[i];
+            int globalNode = nodes[localNode];
+
+            PhysiKNative.PHYSIK_GetNodePosition(
+                world,
+                globalNode,
+                out float x,
+                out float y,
+                out float z);
+
+            Vector3 p = new Vector3(x, y, z);
+            int baseVertex = i * 6;
+
+            vertices[baseVertex + 0] = p + new Vector3(r, 0.0f, 0.0f);
+            vertices[baseVertex + 1] = p + new Vector3(-r, 0.0f, 0.0f);
+            vertices[baseVertex + 2] = p + new Vector3(0.0f, r, 0.0f);
+            vertices[baseVertex + 3] = p + new Vector3(0.0f, -r, 0.0f);
+            vertices[baseVertex + 4] = p + new Vector3(0.0f, 0.0f, r);
+            vertices[baseVertex + 5] = p + new Vector3(0.0f, 0.0f, -r);
+        }
+
+        boundaryMarkerMesh.vertices = vertices;
+
+        if (boundaryMarkerTriangles != null)
+        {
+            boundaryMarkerMesh.triangles = boundaryMarkerTriangles;
+        }
+
+        boundaryMarkerMesh.RecalculateNormals();
+        boundaryMarkerMesh.RecalculateBounds();
+    }
     private void CreateCircularTissueTetMesh()
     {
         if (material == null)
@@ -829,6 +1150,113 @@ public class PhysikCircularTissue : MonoBehaviour
             this);
     }
 
+    private void CreatePointConnectionLineVisual()
+    {
+        pointConnectionLineObject = new GameObject("PhysiK_PointConnection_Lines");
+        pointConnectionLineObject.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+
+        pointConnectionLineMeshFilter = pointConnectionLineObject.AddComponent<MeshFilter>();
+        pointConnectionLineMeshRenderer = pointConnectionLineObject.AddComponent<MeshRenderer>();
+
+        pointConnectionLineMesh = new Mesh
+        {
+            name = "PhysiK_PointConnection_Lines_Mesh",
+            indexFormat = UnityEngine.Rendering.IndexFormat.UInt32
+        };
+
+        pointConnectionLineMesh.MarkDynamic();
+        pointConnectionLineMeshFilter.sharedMesh = pointConnectionLineMesh;
+
+        if (pointConnectionLineMaterial != null)
+        {
+            pointConnectionLineMeshRenderer.sharedMaterial = pointConnectionLineMaterial;
+        }
+    }
+
+    private void RebuildPointConnectionLineTopology()
+    {
+        if (pointConnectionLineMesh == null ||
+            boundaryLocalNodeIndices == null ||
+            boundaryAnchorPositions == null)
+        {
+            return;
+        }
+
+        int connectionCount = boundaryLocalNodeIndices.Length;
+
+        pointConnectionLineVertices = new Vector3[connectionCount * 2];
+        pointConnectionLineIndices = new int[connectionCount * 2];
+
+        for (int i = 0; i < connectionCount; ++i)
+        {
+            int baseIndex = i * 2;
+
+            pointConnectionLineIndices[baseIndex + 0] = baseIndex + 0;
+            pointConnectionLineIndices[baseIndex + 1] = baseIndex + 1;
+        }
+
+        pointConnectionLineMesh.Clear();
+        pointConnectionLineMesh.vertices = pointConnectionLineVertices;
+        pointConnectionLineMesh.SetIndices(
+            pointConnectionLineIndices,
+            MeshTopology.Lines,
+            0);
+
+        pointConnectionLineMesh.RecalculateBounds();
+    }
+
+    private void UpdatePointConnectionLineVertices()
+    {
+        if (pointConnectionLineMesh == null ||
+            boundaryLocalNodeIndices == null ||
+            boundaryAnchorPositions == null ||
+            nodes == null)
+        {
+            return;
+        }
+
+        int connectionCount = boundaryLocalNodeIndices.Length;
+
+        if (pointConnectionLineVertices == null ||
+            pointConnectionLineVertices.Length != connectionCount * 2)
+        {
+            RebuildPointConnectionLineTopology();
+        }
+
+        for (int i = 0; i < connectionCount; ++i)
+        {
+            int localNodeIndex = boundaryLocalNodeIndices[i];
+            int globalNodeIndex = nodes[localNodeIndex];
+
+            PhysiKNative.PHYSIK_GetNodePosition(
+                world,
+                globalNodeIndex,
+                out float nodeX,
+                out float nodeY,
+                out float nodeZ);
+
+            Vector3 nodePosition = new Vector3(nodeX, nodeY, nodeZ);
+            Vector3 anchorPosition = boundaryAnchorPositions[i];
+
+            int baseIndex = i * 2;
+
+            pointConnectionLineVertices[baseIndex + 0] = nodePosition;
+            pointConnectionLineVertices[baseIndex + 1] = anchorPosition;
+        }
+
+        pointConnectionLineMesh.vertices = pointConnectionLineVertices;
+
+        if (pointConnectionLineIndices != null)
+        {
+            pointConnectionLineMesh.SetIndices(
+                pointConnectionLineIndices,
+                MeshTopology.Lines,
+                0);
+        }
+
+        pointConnectionLineMesh.RecalculateBounds();
+    }
+
     private void OnDestroy()
     {
         if (world != IntPtr.Zero)
@@ -840,6 +1268,21 @@ public class PhysikCircularTissue : MonoBehaviour
         if (surfaceObject != null)
         {
             Destroy(surfaceObject);
+        }
+
+        if (wireframeObject != null)
+        {
+            Destroy(wireframeObject);
+        }
+
+        if (boundaryMarkerObject != null)
+        {
+            Destroy(boundaryMarkerObject);
+        }
+
+        if (pointConnectionLineObject != null)
+        {
+            Destroy(pointConnectionLineObject);
         }
     }
 

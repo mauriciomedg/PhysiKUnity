@@ -154,18 +154,25 @@ MonoBehaviour:
   maxSimulationStepsPerFrame: 1
   gravity: {x: 0, y: -9.81, z: 0}
   applyGravityEveryStep: 1
-  gridResolution: 12
+  gridResolution: 14
   radius: 10
   thickness: 0.5
   material: {fileID: 11400000, guid: 913132e481a04d94c889845813b43839, type: 2}
   femModel: 1
-  boundaryStiffness: 500
+  boundaryStiffness: 2000
   boundaryDamping: 0
   radialBoundaryOffset: 5
   randomSeed: 12345
-  drawSurface: 1
+  drawSurface: 0
   surfaceMaterial: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}
-  doubleSidedSurface: 1
+  doubleSidedSurface: 0
+  drawWireframe: 1
+  wireframeMaterial: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}
+  drawBoundaryMarkers: 1
+  boundaryMarkerMaterial: {fileID: 10306, guid: 0000000000000000f000000000000000, type: 0}
+  boundaryMarkerRadius: 0.035
+  drawPointConnectionLines: 1
+  pointConnectionLineMaterial: {fileID: 10306, guid: 0000000000000000f000000000000000, type: 0}
 --- !u!4 &188124103
 Transform:
   m_ObjectHideFlags: 0
