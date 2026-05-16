@@ -83,6 +83,13 @@ crashlytics-build.properties
 # TestRunner generated files
 InitTestScene*.unity*
 
+# Native plugin build artifacts
+Assets/Plugins/Physik.dll
+Assets/Plugins/Physik.dll.meta
+
+# Unity scene template local/generated file
+ProjectSettings/SceneTemplateSettings.json
+
 # Addressables default ignores, before user customizations
 /ServerData
 /[Aa]ssets/StreamingAssets/aa*
