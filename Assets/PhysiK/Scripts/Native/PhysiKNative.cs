@@ -35,6 +35,14 @@ public enum PhysikOverlapGeometryType
     Node = 4
 }
 
+[StructLayout(LayoutKind.Sequential)]
+public struct Vec3
+{
+    public float x;
+    public float y;
+    public float z;
+}
+
 public static class PhysiKNative
 {
     private const string DllName = "PhysiK";
@@ -223,5 +231,29 @@ public static class PhysiKNative
         PhysiKComponentHandle sphereComponent,
         out float stiffness,
         out float damping);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int PHYSIK_GetVisualMeshVertexCount(
+        IntPtr world,
+        PhysiKComponentHandle visualMesh);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int PHYSIK_GetVisualMeshTriangleIndexCount(
+            IntPtr world,
+            PhysiKComponentHandle visualMesh);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int PHYSIK_CopyVisualMeshVertices(
+            IntPtr world,
+            PhysiKComponentHandle visualMesh,
+            [Out] Vec3[] outVertices,
+            int maxVertexCount);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int PHYSIK_CopyVisualMeshTriangleIndices(
+            IntPtr world,
+            PhysiKComponentHandle visualMesh,
+            [Out] int[] outIndices,
+            int maxIndexCount);
 
 }
