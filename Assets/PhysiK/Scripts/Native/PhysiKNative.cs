@@ -232,24 +232,43 @@ public static class PhysiKNative
         out float stiffness,
         out float damping);
 
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern PhysiKComponentHandle PHYSIK_CreateVisualMeshComponent(
+    IntPtr world,
+    PhysiKComponentHandle hostTetMesh);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void PHYSIK_SetVisualMeshData(
+        IntPtr world,
+        PhysiKComponentHandle visualMesh,
+        Vec3[] vertices,
+        int vertexCount,
+        int[] triangleIndices,
+        int triangleIndexCount);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_BuildVisualMeshEmbedding(
+        IntPtr world,
+        PhysiKComponentHandle visualMesh);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern int PHYSIK_GetVisualMeshVertexCount(
         IntPtr world,
         PhysiKComponentHandle visualMesh);
 
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern int PHYSIK_GetVisualMeshTriangleIndexCount(
             IntPtr world,
             PhysiKComponentHandle visualMesh);
 
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern int PHYSIK_CopyVisualMeshVertices(
             IntPtr world,
             PhysiKComponentHandle visualMesh,
             [Out] Vec3[] outVertices,
             int maxVertexCount);
 
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern int PHYSIK_CopyVisualMeshTriangleIndices(
             IntPtr world,
             PhysiKComponentHandle visualMesh,
