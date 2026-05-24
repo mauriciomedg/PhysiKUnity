@@ -53,6 +53,9 @@ public class PhysikCircularTissue : MonoBehaviour
     [SerializeField] private bool drawPointConnectionLines = true;
     [SerializeField] private Material pointConnectionLineMaterial;
 
+    private bool initialized;
+    public bool IsInitialized => initialized;
+
     private IntPtr world = IntPtr.Zero;
     private PhysiKComponentHandle tetMesh;
 
@@ -148,6 +151,7 @@ public class PhysikCircularTissue : MonoBehaviour
         }
     }
 
+    //public bool IsInitialized { get; private set; }
     private void Awake()
     {
         random = new System.Random(randomSeed);
@@ -201,6 +205,8 @@ public class PhysikCircularTissue : MonoBehaviour
             $"Radial tissue created. FEM={femModel}, nodes={nodes.Length}, totalTets={totalTetCount}, activeTets={activeTetCount}, " +
             $"boundaryNodes={boundaryLocalNodeIndices.Length}, radialSegments={radialSegments}, angularSegments={angularSegments}. Press R to remove one random interior tet.",
             this);
+
+        initialized = true;
     }
 
     private void Update()
