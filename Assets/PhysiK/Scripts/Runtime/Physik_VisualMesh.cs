@@ -125,8 +125,8 @@ public class Physik_VisualMesh : MonoBehaviour
         {
             int next = (segment + 1) % angularSegments;
             tris.Add(0);
-            tris.Add(1 + segment);
             tris.Add(1 + next);
+            tris.Add(1 + segment);
         }
 
         for (int ring = 1; ring < radialSegments; ++ring)
@@ -144,12 +144,12 @@ public class Physik_VisualMesh : MonoBehaviour
                 int outer1 = outerStart + next;
 
                 tris.Add(inner0);
-                tris.Add(outer0);
                 tris.Add(outer1);
+                tris.Add(outer0);
 
                 tris.Add(inner0);
-                tris.Add(outer1);
                 tris.Add(inner1);
+                tris.Add(outer1);
             }
         }
 
@@ -168,5 +168,7 @@ public class Physik_VisualMesh : MonoBehaviour
         mesh.RecalculateBounds();
 
         GetComponent<MeshFilter>().sharedMesh = mesh;
+
+        Debug.Log($"Generated mesh vertices={mesh.vertexCount}, triangles={mesh.triangles.Length / 3}, bounds={mesh.bounds}", this);
     }
 }
