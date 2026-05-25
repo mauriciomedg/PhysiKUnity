@@ -82,8 +82,24 @@ public class Physik_VisualMesh : MonoBehaviour
                 nativeVertices[i].z);
         }
 
+        int triangleIndexCount = PhysiKNative.PHYSIK_GetVisualMeshTriangleIndexCount(
+            tissueHost.WorldHandle,
+            visualMeshHandle);
+
+        if (triangles == null || triangles.Length != triangleIndexCount)
+        {
+            triangles = new int[triangleIndexCount];
+
+            PhysiKNative.PHYSIK_CopyVisualMeshTriangleIndices(
+                tissueHost.WorldHandle,
+                visualMeshHandle,
+                triangles,
+                triangles.Length);
+
+            mesh.triangles = triangles;
+        }
+
         mesh.vertices = unityVertices;
-        mesh.triangles = triangles;
         mesh.RecalculateNormals();
         mesh.RecalculateBounds();
     }
