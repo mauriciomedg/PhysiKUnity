@@ -77,7 +77,7 @@ public static class PhysiKNative
         float z);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern PhysiKComponentHandle PHYSIK_CreateTetMeshComponent(
+    public static extern PhysiKComponentHandle PHYSIK_CreateTetMeshPhysicsComponent(
         IntPtr world,
         int[] nodeIndices,
         int nodeCount,

@@ -195,7 +195,7 @@ public sealed class PhysiKTetDemo : MonoBehaviour
             $"Creating beam TetMesh. FEM={femModel}, nodes={nodes.Length}, tets={tetNodeIndices.Length / 4}, gravity=({gravity.x:F4}, {gravity.y:F4}, {gravity.z:F4})",
             this);
 
-        tetMesh = PhysiKNative.PHYSIK_CreateTetMeshComponent(
+        tetMesh = PhysiKNative.PHYSIK_CreateTetMeshPhysicsComponent(
             world,
             nodes,
             nodes.Length,

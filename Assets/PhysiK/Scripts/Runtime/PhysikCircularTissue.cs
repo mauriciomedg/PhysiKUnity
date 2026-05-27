@@ -401,7 +401,7 @@ public class PhysikCircularTissue : MonoBehaviour
 
         PhysikMaterialDesc nativeMaterial = material.ToNative();
 
-        tetMesh = PhysiKNative.PHYSIK_CreateTetMeshComponent(
+        tetMesh = PhysiKNative.PHYSIK_CreateTetMeshPhysicsComponent(
             world,
             nodes,
             nodes.Length,
