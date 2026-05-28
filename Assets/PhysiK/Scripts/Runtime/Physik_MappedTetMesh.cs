@@ -35,6 +35,7 @@ public class Physik_MappedTetMesh : MonoBehaviour
     private int[] tetLocalNodeIndices;
 
     private bool initialized;
+    private int previousActiveTetCount = -1;
 
     private IEnumerator Start()
     {
@@ -57,6 +58,7 @@ public class Physik_MappedTetMesh : MonoBehaviour
         }
 
         UpdateMappedVerticesFromNative();
+        RebuildWireframeTopologyIfNeeded();
         UpdateWireframeVertices();
     }
 
@@ -105,7 +107,6 @@ public class Physik_MappedTetMesh : MonoBehaviour
             }
         }
 
-        // Center fan.
         for (int segment = 0; segment < angularSegments; ++segment)
         {
             int next = (segment + 1) % angularSegments;
@@ -117,7 +118,6 @@ public class Physik_MappedTetMesh : MonoBehaviour
             bottomTriangles.Add((a, b, c));
         }
 
-        // Ring bands.
         for (int ring = 1; ring < radialSegments; ++ring)
         {
             for (int segment = 0; segment < angularSegments; ++segment)
@@ -269,6 +269,26 @@ public class Physik_MappedTetMesh : MonoBehaviour
         }
     }
 
+    private void RebuildWireframeTopologyIfNeeded()
+    {
+        if (mappedTetMeshHandle.IsValid == false)
+        {
+            return;
+        }
+
+        int activeTetCount = PhysiKNative.PHYSIK_GetActiveTetCount(
+            tissueHost.WorldHandle,
+            mappedTetMeshHandle);
+
+        if (activeTetCount == previousActiveTetCount)
+        {
+            return;
+        }
+
+        RebuildWireframeTopology();
+        previousActiveTetCount = activeTetCount;
+    }
+
     private void RebuildWireframeTopology()
     {
         if (wireframeMesh == null || tetLocalNodeIndices == null)
@@ -281,6 +301,14 @@ public class Physik_MappedTetMesh : MonoBehaviour
 
         for (int tet = 0; tet < tetCount; ++tet)
         {
+            if (PhysiKNative.PHYSIK_IsTetActive(
+                    tissueHost.WorldHandle,
+                    mappedTetMeshHandle,
+                    tet) == 0)
+            {
+                continue;
+            }
+
             int baseIndex = tet * 4;
 
             int a = tetLocalNodeIndices[baseIndex + 0];
@@ -307,7 +335,12 @@ public class Physik_MappedTetMesh : MonoBehaviour
 
         wireframeMesh.Clear();
         wireframeMesh.vertices = mappedVertices;
-        wireframeMesh.SetIndices(wireframeLineIndices, MeshTopology.Lines, 0);
+
+        if (wireframeLineIndices.Length > 0)
+        {
+            wireframeMesh.SetIndices(wireframeLineIndices, MeshTopology.Lines, 0);
+        }
+
         wireframeMesh.RecalculateBounds();
     }
 
