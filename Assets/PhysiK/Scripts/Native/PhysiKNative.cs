@@ -47,34 +47,42 @@ public static class PhysiKNative
 {
     private const string DllName = "PhysiK";
 
-    [DllImport(DllName)]
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr PHYSIK_CreateWorld();
 
-    [DllImport(DllName)]
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void PHYSIK_DestroyWorld(IntPtr world);
 
-    [DllImport(DllName)]
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void PHYSIK_Step(IntPtr world, float dt);
 
-    [DllImport(DllName)]
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void PHYSIK_SetSubstepCount(IntPtr world, int substepCount);
 
-    [DllImport(DllName)]
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void PHYSIK_SetSolverMode(IntPtr world, int mode);
 
-    [DllImport(DllName)]
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void PHYSIK_SetGravity(
         IntPtr world,
         float x,
         float y,
         float z);
 
-    [DllImport(DllName)]
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int PHYSIK_AddNode(
         IntPtr world,
         float x,
         float y,
         float z);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern PhysiKComponentHandle PHYSIK_CreateTetMeshComponent(
+        IntPtr world,
+        [In] Vec3[] positions,
+        int nodeCount,
+        [In] int[] tetLocalNodeIndices,
+        int tetCount);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern PhysiKComponentHandle PHYSIK_CreateTetMeshPhysicsComponent(
@@ -85,6 +93,21 @@ public static class PhysiKNative
         int tetCount,
         ref PhysikMaterialDesc material,
         PhysiKFemModel femModel);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern PhysiKComponentHandle PHYSIK_CreateTetMeshMapperComponent(
+        IntPtr world,
+        PhysiKComponentHandle sourceTetMesh,
+        PhysiKComponentHandle destinationTetMesh);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_GetTetMeshLocalCurrentPosition(
+        IntPtr world,
+        PhysiKComponentHandle tetMesh,
+        int localNodeIndex,
+        out float x,
+        out float y,
+        out float z);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void PHYSIK_SetTetMeshMaterial(
@@ -116,12 +139,12 @@ public static class PhysiKNative
         IntPtr world,
         PhysiKComponentHandle component);
 
-    [DllImport(DllName)]
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int PHYSIK_IsComponentHandleValid(
         IntPtr world,
         PhysiKComponentHandle component);
 
-    [DllImport(DllName)]
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void PHYSIK_GetNodePosition(
         IntPtr world,
         int nodeIndex,
@@ -129,7 +152,7 @@ public static class PhysiKNative
         out float y,
         out float z);
 
-    [DllImport(DllName)]
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void PHYSIK_GetNodeVelocity(
         IntPtr world,
         int nodeIndex,
@@ -137,7 +160,7 @@ public static class PhysiKNative
         out float y,
         out float z);
 
-    [DllImport(DllName)]
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void PHYSIK_SetNodePosition(
         IntPtr world,
         int nodeIndex,
@@ -145,7 +168,7 @@ public static class PhysiKNative
         float y,
         float z);
 
-    [DllImport(DllName)]
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void PHYSIK_AddPointConnection(
     IntPtr world,
     int node0,
