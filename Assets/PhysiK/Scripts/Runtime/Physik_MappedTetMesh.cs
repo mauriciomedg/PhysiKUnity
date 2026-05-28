@@ -16,6 +16,7 @@ public class Physik_MappedTetMesh : MonoBehaviour
     [SerializeField] private float yOffset = 0.0f;
 
     [Header("Wireframe")]
+    [SerializeField] private bool drawWireframe = true;
     [SerializeField] private Material wireframeMaterial;
 
     [Header("Debug")]
@@ -36,6 +37,18 @@ public class Physik_MappedTetMesh : MonoBehaviour
 
     private bool initialized;
     private int previousActiveTetCount = -1;
+
+    public bool IsInitialized => initialized;
+
+    public System.IntPtr WorldHandle => tissueHost != null
+        ? tissueHost.WorldHandle
+        : System.IntPtr.Zero;
+
+    public PhysiKComponentHandle MappedTetMeshHandle => mappedTetMeshHandle;
+
+    public int VertexCount => nativeRestPositions != null
+        ? nativeRestPositions.Length
+        : 0;
 
     private IEnumerator Start()
     {
@@ -58,8 +71,17 @@ public class Physik_MappedTetMesh : MonoBehaviour
         }
 
         UpdateMappedVerticesFromNative();
-        RebuildWireframeTopologyIfNeeded();
-        UpdateWireframeVertices();
+
+        if (drawWireframe)
+        {
+            EnsureWireframeExists();
+            RebuildWireframeTopologyIfNeeded();
+            UpdateWireframeVertices();
+        }
+        else if (wireframeObject != null && wireframeObject.activeSelf)
+        {
+            wireframeObject.SetActive(false);
+        }
     }
 
     private void CreateMappedCircularTetMesh()
@@ -202,9 +224,12 @@ public class Physik_MappedTetMesh : MonoBehaviour
             return;
         }
 
-        CreateWireframeVisual();
-        RebuildWireframeTopology();
-        UpdateWireframeVertices();
+        if (drawWireframe)
+        {
+            EnsureWireframeExists();
+            RebuildWireframeTopology();
+            UpdateWireframeVertices();
+        }
 
         initialized = true;
 
@@ -242,7 +267,20 @@ public class Physik_MappedTetMesh : MonoBehaviour
             }
         }
     }
+    private void EnsureWireframeExists()
+    {
+        if (wireframeObject == null)
+        {
+            CreateWireframeVisual();
+            previousActiveTetCount = -1;
+        }
 
+        if (!wireframeObject.activeSelf)
+        {
+            wireframeObject.SetActive(true);
+            previousActiveTetCount = -1;
+        }
+    }
     private void CreateWireframeVisual()
     {
         wireframeObject = new GameObject("PhysiK_MappedTetMesh_Wireframe");

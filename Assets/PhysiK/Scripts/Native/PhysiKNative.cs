@@ -298,4 +298,21 @@ public static class PhysiKNative
             [Out] int[] outIndices,
             int maxIndexCount);
 
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern PhysiKComponentHandle PHYSIK_CreateSurfaceExtractionComponent(
+            IntPtr world,
+            PhysiKComponentHandle hostTetMesh);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int PHYSIK_GetSurfaceTriangleIndexCount(
+            IntPtr world,
+            PhysiKComponentHandle surfaceExtraction);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int PHYSIK_CopySurfaceTriangleIndices(
+            IntPtr world,
+            PhysiKComponentHandle surfaceExtraction,
+            [Out] int[] outIndices,
+            int maxIndexCount);
+
 }
