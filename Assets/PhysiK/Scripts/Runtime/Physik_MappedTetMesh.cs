@@ -19,6 +19,14 @@ public class Physik_MappedTetMesh : MonoBehaviour
     [Header("Debug")]
     [SerializeField] private bool logCreation = true;
 
+    [Header("Wireframe")]
+    [SerializeField] private bool drawWireframe = true;
+    [SerializeField] private Material wireframeMaterial;
+
+    private GameObject wireframeObject;
+    private Mesh wireframeMesh;
+    private int[] wireframeLineIndices;
+
     private PhysiKComponentHandle mappedTetMeshHandle;
     private PhysiKComponentHandle mapperHandle;
 
@@ -173,6 +181,11 @@ public class Physik_MappedTetMesh : MonoBehaviour
 
         CreateUnityMesh();
 
+        if (drawWireframe)
+        {
+            CreateWireframeMesh();
+        }
+
         mappedTetMeshHandle = PhysiKNative.PHYSIK_CreateTetMeshComponent(
             tissueHost.WorldHandle,
             nativeRestPositions,
@@ -232,6 +245,8 @@ public class Physik_MappedTetMesh : MonoBehaviour
         mesh.triangles = surfaceTriangles;
         mesh.RecalculateNormals();
         mesh.RecalculateBounds();
+
+        UpdateWireframeMesh();
 
         GetComponent<MeshFilter>().sharedMesh = mesh;
     }
@@ -311,5 +326,107 @@ public class Physik_MappedTetMesh : MonoBehaviour
         tets.Add(n1);
         tets.Add(n2);
         tets.Add(n3);
+    }
+    private void OnDestroy()
+    {
+        if (wireframeObject != null)
+        {
+            Destroy(wireframeObject);
+        }
+    }
+    private void CreateWireframeMesh()
+    {
+        wireframeObject = new GameObject("PhysiK_MappedTetMesh_Wireframe");
+        wireframeObject.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+
+        MeshFilter meshFilter = wireframeObject.AddComponent<MeshFilter>();
+        MeshRenderer meshRenderer = wireframeObject.AddComponent<MeshRenderer>();
+
+        if (wireframeMaterial != null)
+        {
+            meshRenderer.sharedMaterial = wireframeMaterial;
+        }
+
+        wireframeMesh = new Mesh
+        {
+            name = "PhysiK_MappedTetMesh_Wireframe_Mesh",
+            indexFormat = UnityEngine.Rendering.IndexFormat.UInt32
+        };
+
+        wireframeMesh.MarkDynamic();
+
+        wireframeLineIndices = BuildTetWireframeLineIndices(tetLocalNodeIndices);
+
+        wireframeMesh.vertices = unityVertices;
+        wireframeMesh.SetIndices(wireframeLineIndices, MeshTopology.Lines, 0);
+        wireframeMesh.RecalculateBounds();
+
+        meshFilter.sharedMesh = wireframeMesh;
+    }
+
+    private void UpdateWireframeMesh()
+    {
+        if (!drawWireframe || wireframeMesh == null || unityVertices == null)
+        {
+            return;
+        }
+
+        wireframeMesh.vertices = unityVertices;
+
+        if (wireframeLineIndices != null)
+        {
+            wireframeMesh.SetIndices(wireframeLineIndices, MeshTopology.Lines, 0);
+        }
+
+        wireframeMesh.RecalculateBounds();
+    }
+
+    private static int[] BuildTetWireframeLineIndices(int[] tetIndices)
+    {
+        HashSet<(int a, int b)> edges = new HashSet<(int a, int b)>();
+
+        if (tetIndices == null)
+        {
+            return System.Array.Empty<int>();
+        }
+
+        int tetCount = tetIndices.Length / 4;
+
+        for (int tet = 0; tet < tetCount; ++tet)
+        {
+            int baseIndex = tet * 4;
+
+            int a = tetIndices[baseIndex + 0];
+            int b = tetIndices[baseIndex + 1];
+            int c = tetIndices[baseIndex + 2];
+            int d = tetIndices[baseIndex + 3];
+
+            AddEdge(edges, a, b);
+            AddEdge(edges, a, c);
+            AddEdge(edges, a, d);
+            AddEdge(edges, b, c);
+            AddEdge(edges, b, d);
+            AddEdge(edges, c, d);
+        }
+
+        List<int> lines = new List<int>(edges.Count * 2);
+
+        foreach ((int a, int b) in edges)
+        {
+            lines.Add(a);
+            lines.Add(b);
+        }
+
+        return lines.ToArray();
+    }
+
+    private static void AddEdge(HashSet<(int a, int b)> edges, int a, int b)
+    {
+        if (a > b)
+        {
+            (a, b) = (b, a);
+        }
+
+        edges.Add((a, b));
     }
 }
