@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using PhysiK.Unity;
 
-[RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class Physik_MappedTetMesh : MonoBehaviour
 {
     [Header("Host")]
@@ -16,26 +15,24 @@ public class Physik_MappedTetMesh : MonoBehaviour
     [SerializeField] private float thickness = 0.12f;
     [SerializeField] private float yOffset = 0.0f;
 
-    [Header("Debug")]
-    [SerializeField] private bool logCreation = true;
-
     [Header("Wireframe")]
-    [SerializeField] private bool drawWireframe = true;
     [SerializeField] private Material wireframeMaterial;
 
-    private GameObject wireframeObject;
-    private Mesh wireframeMesh;
-    private int[] wireframeLineIndices;
+    [Header("Debug")]
+    [SerializeField] private bool logCreation = true;
 
     private PhysiKComponentHandle mappedTetMeshHandle;
     private PhysiKComponentHandle mapperHandle;
 
-    private Mesh mesh;
+    private GameObject wireframeObject;
+    private Mesh wireframeMesh;
+    private MeshFilter wireframeMeshFilter;
+    private MeshRenderer wireframeMeshRenderer;
+    private int[] wireframeLineIndices;
 
     private Vec3[] nativeRestPositions;
-    private Vector3[] unityVertices;
+    private Vector3[] mappedVertices;
     private int[] tetLocalNodeIndices;
-    private int[] surfaceTriangles;
 
     private bool initialized;
 
@@ -60,6 +57,7 @@ public class Physik_MappedTetMesh : MonoBehaviour
         }
 
         UpdateMappedVerticesFromNative();
+        UpdateWireframeVertices();
     }
 
     private void CreateMappedCircularTetMesh()
@@ -74,7 +72,6 @@ public class Physik_MappedTetMesh : MonoBehaviour
 
         List<Vector3> positions = new List<Vector3>();
         List<int> tets = new List<int>();
-        List<int> topSurfaceTriangles = new List<int>();
         List<(int a, int b, int c)> bottomTriangles = new List<(int a, int b, int c)>();
 
         int[,] bottomRingNodes = new int[radialSegments + 1, angularSegments];
@@ -108,6 +105,7 @@ public class Physik_MappedTetMesh : MonoBehaviour
             }
         }
 
+        // Center fan.
         for (int segment = 0; segment < angularSegments; ++segment)
         {
             int next = (segment + 1) % angularSegments;
@@ -119,6 +117,7 @@ public class Physik_MappedTetMesh : MonoBehaviour
             bottomTriangles.Add((a, b, c));
         }
 
+        // Ring bands.
         for (int ring = 1; ring < radialSegments; ++ring)
         {
             for (int segment = 0; segment < angularSegments; ++segment)
@@ -152,15 +151,10 @@ public class Physik_MappedTetMesh : MonoBehaviour
             int ct = GetTopLocalNodeFromBottomLocalNode(c);
 
             AddPrismTetsLocal(tets, positions, a, b, c, at, bt, ct);
-
-            // Render only the top layer for now.
-            topSurfaceTriangles.Add(at);
-            topSurfaceTriangles.Add(ct);
-            topSurfaceTriangles.Add(bt);
         }
 
         nativeRestPositions = new Vec3[positions.Count];
-        unityVertices = new Vector3[positions.Count];
+        mappedVertices = new Vector3[positions.Count];
 
         for (int i = 0; i < positions.Count; ++i)
         {
@@ -173,18 +167,10 @@ public class Physik_MappedTetMesh : MonoBehaviour
                 z = p.z
             };
 
-            unityVertices[i] = p;
+            mappedVertices[i] = p;
         }
 
         tetLocalNodeIndices = tets.ToArray();
-        surfaceTriangles = topSurfaceTriangles.ToArray();
-
-        CreateUnityMesh();
-
-        if (drawWireframe)
-        {
-            CreateWireframeMesh();
-        }
 
         mappedTetMeshHandle = PhysiKNative.PHYSIK_CreateTetMeshComponent(
             tissueHost.WorldHandle,
@@ -216,49 +202,31 @@ public class Physik_MappedTetMesh : MonoBehaviour
             return;
         }
 
-        // No manual PHYSIK_BuildTetMeshMapping call here.
-        // The mapper should mark itself dirty on creation and build automatically
-        // during the normal native world step.
+        CreateWireframeVisual();
+        RebuildWireframeTopology();
+        UpdateWireframeVertices();
+
         initialized = true;
 
         if (logCreation)
         {
             Debug.Log(
-                $"Mapped tet mesh created. vertices={nativeRestPositions.Length}, " +
+                $"Mapped tet wireframe created. vertices={nativeRestPositions.Length}, " +
                 $"tets={tetLocalNodeIndices.Length / 4}, " +
-                $"surfaceTriangles={surfaceTriangles.Length / 3}. " +
+                $"wireEdges={wireframeLineIndices.Length / 2}. " +
                 $"Mapper will auto-build during PHYSIK_Step.",
                 this);
         }
     }
 
-    private void CreateUnityMesh()
-    {
-        mesh = new Mesh
-        {
-            name = "PhysiK_Mapped_TetMesh_Surface",
-            indexFormat = UnityEngine.Rendering.IndexFormat.UInt32
-        };
-
-        mesh.MarkDynamic();
-        mesh.vertices = unityVertices;
-        mesh.triangles = surfaceTriangles;
-        mesh.RecalculateNormals();
-        mesh.RecalculateBounds();
-
-        UpdateWireframeMesh();
-
-        GetComponent<MeshFilter>().sharedMesh = mesh;
-    }
-
     private void UpdateMappedVerticesFromNative()
     {
-        if (unityVertices == null || mappedTetMeshHandle.IsValid == false)
+        if (mappedVertices == null || mappedTetMeshHandle.IsValid == false)
         {
             return;
         }
 
-        for (int i = 0; i < unityVertices.Length; ++i)
+        for (int i = 0; i < mappedVertices.Length; ++i)
         {
             int ok = PhysiKNative.PHYSIK_GetTetMeshLocalCurrentPosition(
                 tissueHost.WorldHandle,
@@ -270,19 +238,104 @@ public class Physik_MappedTetMesh : MonoBehaviour
 
             if (ok != 0)
             {
-                unityVertices[i] = new Vector3(x, y, z);
+                mappedVertices[i] = new Vector3(x, y, z);
             }
         }
+    }
 
-        mesh.vertices = unityVertices;
+    private void CreateWireframeVisual()
+    {
+        wireframeObject = new GameObject("PhysiK_MappedTetMesh_Wireframe");
+        wireframeObject.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
 
-        if (surfaceTriangles != null)
+        wireframeMeshFilter = wireframeObject.AddComponent<MeshFilter>();
+        wireframeMeshRenderer = wireframeObject.AddComponent<MeshRenderer>();
+
+        wireframeMesh = new Mesh
         {
-            mesh.triangles = surfaceTriangles;
+            name = "PhysiK_MappedTetMesh_Wireframe_Mesh",
+            indexFormat = UnityEngine.Rendering.IndexFormat.UInt32
+        };
+
+        wireframeMesh.MarkDynamic();
+        wireframeMeshFilter.sharedMesh = wireframeMesh;
+
+        wireframeMeshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        wireframeMeshRenderer.receiveShadows = false;
+
+        if (wireframeMaterial != null)
+        {
+            wireframeMeshRenderer.sharedMaterial = wireframeMaterial;
+        }
+    }
+
+    private void RebuildWireframeTopology()
+    {
+        if (wireframeMesh == null || tetLocalNodeIndices == null)
+        {
+            return;
         }
 
-        mesh.RecalculateNormals();
-        mesh.RecalculateBounds();
+        HashSet<(int, int)> uniqueEdges = new HashSet<(int, int)>();
+        int tetCount = tetLocalNodeIndices.Length / 4;
+
+        for (int tet = 0; tet < tetCount; ++tet)
+        {
+            int baseIndex = tet * 4;
+
+            int a = tetLocalNodeIndices[baseIndex + 0];
+            int b = tetLocalNodeIndices[baseIndex + 1];
+            int c = tetLocalNodeIndices[baseIndex + 2];
+            int d = tetLocalNodeIndices[baseIndex + 3];
+
+            AddWireEdge(uniqueEdges, a, b);
+            AddWireEdge(uniqueEdges, a, c);
+            AddWireEdge(uniqueEdges, a, d);
+            AddWireEdge(uniqueEdges, b, c);
+            AddWireEdge(uniqueEdges, b, d);
+            AddWireEdge(uniqueEdges, c, d);
+        }
+
+        List<int> lines = new List<int>(uniqueEdges.Count * 2);
+        foreach ((int a, int b) in uniqueEdges)
+        {
+            lines.Add(a);
+            lines.Add(b);
+        }
+
+        wireframeLineIndices = lines.ToArray();
+
+        wireframeMesh.Clear();
+        wireframeMesh.vertices = mappedVertices;
+        wireframeMesh.SetIndices(wireframeLineIndices, MeshTopology.Lines, 0);
+        wireframeMesh.RecalculateBounds();
+    }
+
+    private void UpdateWireframeVertices()
+    {
+        if (wireframeMesh == null || mappedVertices == null)
+        {
+            return;
+        }
+
+        wireframeMesh.vertices = mappedVertices;
+
+        if (wireframeLineIndices != null)
+        {
+            wireframeMesh.SetIndices(wireframeLineIndices, MeshTopology.Lines, 0);
+        }
+
+        wireframeMesh.RecalculateBounds();
+    }
+
+    private static void AddWireEdge(HashSet<(int, int)> edges, int a, int b)
+    {
+        if (a > b)
+        {
+            (a, b) = (b, a);
+        }
+
+        edges.Add((a, b));
     }
 
     private static void AddPrismTetsLocal(
@@ -327,106 +380,12 @@ public class Physik_MappedTetMesh : MonoBehaviour
         tets.Add(n2);
         tets.Add(n3);
     }
+
     private void OnDestroy()
     {
         if (wireframeObject != null)
         {
             Destroy(wireframeObject);
         }
-    }
-    private void CreateWireframeMesh()
-    {
-        wireframeObject = new GameObject("PhysiK_MappedTetMesh_Wireframe");
-        wireframeObject.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
-
-        MeshFilter meshFilter = wireframeObject.AddComponent<MeshFilter>();
-        MeshRenderer meshRenderer = wireframeObject.AddComponent<MeshRenderer>();
-
-        if (wireframeMaterial != null)
-        {
-            meshRenderer.sharedMaterial = wireframeMaterial;
-        }
-
-        wireframeMesh = new Mesh
-        {
-            name = "PhysiK_MappedTetMesh_Wireframe_Mesh",
-            indexFormat = UnityEngine.Rendering.IndexFormat.UInt32
-        };
-
-        wireframeMesh.MarkDynamic();
-
-        wireframeLineIndices = BuildTetWireframeLineIndices(tetLocalNodeIndices);
-
-        wireframeMesh.vertices = unityVertices;
-        wireframeMesh.SetIndices(wireframeLineIndices, MeshTopology.Lines, 0);
-        wireframeMesh.RecalculateBounds();
-
-        meshFilter.sharedMesh = wireframeMesh;
-    }
-
-    private void UpdateWireframeMesh()
-    {
-        if (!drawWireframe || wireframeMesh == null || unityVertices == null)
-        {
-            return;
-        }
-
-        wireframeMesh.vertices = unityVertices;
-
-        if (wireframeLineIndices != null)
-        {
-            wireframeMesh.SetIndices(wireframeLineIndices, MeshTopology.Lines, 0);
-        }
-
-        wireframeMesh.RecalculateBounds();
-    }
-
-    private static int[] BuildTetWireframeLineIndices(int[] tetIndices)
-    {
-        HashSet<(int a, int b)> edges = new HashSet<(int a, int b)>();
-
-        if (tetIndices == null)
-        {
-            return System.Array.Empty<int>();
-        }
-
-        int tetCount = tetIndices.Length / 4;
-
-        for (int tet = 0; tet < tetCount; ++tet)
-        {
-            int baseIndex = tet * 4;
-
-            int a = tetIndices[baseIndex + 0];
-            int b = tetIndices[baseIndex + 1];
-            int c = tetIndices[baseIndex + 2];
-            int d = tetIndices[baseIndex + 3];
-
-            AddEdge(edges, a, b);
-            AddEdge(edges, a, c);
-            AddEdge(edges, a, d);
-            AddEdge(edges, b, c);
-            AddEdge(edges, b, d);
-            AddEdge(edges, c, d);
-        }
-
-        List<int> lines = new List<int>(edges.Count * 2);
-
-        foreach ((int a, int b) in edges)
-        {
-            lines.Add(a);
-            lines.Add(b);
-        }
-
-        return lines.ToArray();
-    }
-
-    private static void AddEdge(HashSet<(int a, int b)> edges, int a, int b)
-    {
-        if (a > b)
-        {
-            (a, b) = (b, a);
-        }
-
-        edges.Add((a, b));
     }
 }
