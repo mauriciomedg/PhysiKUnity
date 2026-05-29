@@ -194,12 +194,27 @@ public class Physik_EmbeddedTissue : MonoBehaviour
 
         tetLocalNodeIndices = tets.ToArray();
 
+        PhysiKGeneratedTetMeshHandle generatedTetMeshHandle =
+            PhysiKNative.PHYSIK_GenerateTetMesh(
+                nativeRestPositions,
+                nativeRestPositions.Length,
+                tetLocalNodeIndices,
+                tetLocalNodeIndices.Length / 4);
+
+        if (PhysiKNative.PHYSIK_IsGeneratedTetMeshHandleValid(
+                generatedTetMeshHandle) == 0)
+        {
+            Debug.LogError("Failed to generate mapped tet mesh.", this);
+            initialized = false;
+            return;
+        }
+
         mappedTetMeshHandle = PhysiKNative.PHYSIK_CreateTetMeshComponent(
             tissueHost.WorldHandle,
-            nativeRestPositions,
-            nativeRestPositions.Length,
-            tetLocalNodeIndices,
-            tetLocalNodeIndices.Length / 4);
+            generatedTetMeshHandle);
+
+        PhysiKNative.PHYSIK_DestroyGeneratedTetMesh(
+            generatedTetMeshHandle);
 
         if (PhysiKNative.PHYSIK_IsComponentHandleValid(
                 tissueHost.WorldHandle,

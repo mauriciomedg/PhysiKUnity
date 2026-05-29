@@ -19,6 +19,14 @@ public struct PhysikMaterialDesc
     public float damping;
 }
 
+[StructLayout(LayoutKind.Sequential)]
+public struct PhysiKGeneratedTetMeshHandle
+{
+    public IntPtr value;
+
+    public bool IsValid => value != IntPtr.Zero;
+}
+
 public enum PhysiKFemModel : uint
 {
     Linear = 0,
@@ -76,23 +84,66 @@ public static class PhysiKNative
         float y,
         float z);
 
+    // -----------------------------------------------------------------
+    // Generated tet mesh
+    // -----------------------------------------------------------------
+
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern PhysiKComponentHandle PHYSIK_CreateTetMeshComponent(
-        IntPtr world,
+    public static extern PhysiKGeneratedTetMeshHandle PHYSIK_GenerateTetMesh(
         [In] Vec3[] positions,
         int nodeCount,
         [In] int[] tetLocalNodeIndices,
         int tetCount);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_IsGeneratedTetMeshHandleValid(
+        PhysiKGeneratedTetMeshHandle generatedTetMeshHandle);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void PHYSIK_DestroyGeneratedTetMesh(
+        PhysiKGeneratedTetMeshHandle generatedTetMeshHandle);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_GetGeneratedTetMeshVertexCount(
+        PhysiKGeneratedTetMeshHandle generatedTetMeshHandle);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_GetGeneratedTetMeshTetCount(
+        PhysiKGeneratedTetMeshHandle generatedTetMeshHandle);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_GetGeneratedTetMeshTetIndexCount(
+        PhysiKGeneratedTetMeshHandle generatedTetMeshHandle);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_GetGeneratedTetMeshVertex(
+        PhysiKGeneratedTetMeshHandle generatedTetMeshHandle,
+        int vertexIndex,
+        out float outX,
+        out float outY,
+        out float outZ);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_GetGeneratedTetMeshTetNodeIndex(
+        PhysiKGeneratedTetMeshHandle generatedTetMeshHandle,
+        int tetIndexArrayIndex,
+        out int outNodeIndex);
+
+    // -----------------------------------------------------------------
+    // Tet mesh components
+    // Components consume generated meshes only.
+    // -----------------------------------------------------------------
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern PhysiKComponentHandle PHYSIK_CreateTetMeshComponent(
+        IntPtr world,
+        PhysiKGeneratedTetMeshHandle generatedTetMeshHandle);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern PhysiKComponentHandle PHYSIK_CreateTetMeshPhysicsComponent(
         IntPtr world,
-        int[] nodeIndices,
-        int nodeCount,
-        int[] tetNodeIndices,
-        int tetCount,
-        ref PhysikMaterialDesc material,
-        PhysiKFemModel femModel);
+        PhysiKGeneratedTetMeshHandle generatedTetMeshHandle,
+        ref PhysikMaterialDesc material);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern PhysiKComponentHandle PHYSIK_CreateTetMeshMapperComponent(
@@ -138,6 +189,22 @@ public static class PhysiKNative
     public static extern int PHYSIK_GetActiveTetCount(
         IntPtr world,
         PhysiKComponentHandle component);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_GetTetMeshGlobalNodeBeginIndex(
+        IntPtr world,
+        PhysiKComponentHandle tetMeshPhysicsHandle);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_GetTetMeshGlobalNodeCount(
+        IntPtr world,
+        PhysiKComponentHandle tetMeshPhysicsHandle);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_GetTetMeshGlobalNodeIndex(
+        IntPtr world,
+        PhysiKComponentHandle tetMeshPhysicsHandle,
+        int localNodeIndex);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int PHYSIK_IsComponentHandleValid(
