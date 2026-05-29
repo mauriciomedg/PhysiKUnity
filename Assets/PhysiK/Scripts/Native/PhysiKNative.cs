@@ -315,4 +315,49 @@ public static class PhysiKNative
             [Out] int[] outIndices,
             int maxIndexCount);
 
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern PhysiKComponentHandle PHYSIK_CreateSurfaceVisualComponent(
+            System.IntPtr world,
+            PhysiKComponentHandle surfaceExtractionHandle);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int PHYSIK_GetSurfaceVisualVertexCount(
+            System.IntPtr world,
+            PhysiKComponentHandle surfaceVisualHandle);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int PHYSIK_GetSurfaceVisualTriangleIndexCount(
+            System.IntPtr world,
+            PhysiKComponentHandle surfaceVisualHandle);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int PHYSIK_GetSurfaceVisualNormalCount(
+            System.IntPtr world,
+            PhysiKComponentHandle surfaceVisualHandle);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int PHYSIK_GetSurfaceVisualVertex(
+            System.IntPtr world,
+            PhysiKComponentHandle surfaceVisualHandle,
+            int visualVertexIndex,
+            out float outX,
+            out float outY,
+            out float outZ);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int PHYSIK_GetSurfaceVisualTriangleIndex(
+            System.IntPtr world,
+            PhysiKComponentHandle surfaceVisualHandle,
+            int triangleIndexArrayIndex,
+            out int outIndex);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int PHYSIK_GetSurfaceVisualNormal(
+            System.IntPtr world,
+            PhysiKComponentHandle surfaceVisualHandle,
+            int visualNormalIndex,
+            out float outX,
+            out float outY,
+            out float outZ);
+
 }

@@ -4,7 +4,7 @@ using PhysiK.Unity;
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class Physik_VisualMesh : MonoBehaviour
 {
-    [SerializeField] private PhysikCircularTissue tissueHost;
+    [SerializeField] private Physik_MechanicalTissue tissueHost;
     [SerializeField] private int radialSegments = 40;
     [SerializeField] private int angularSegments = 160;
     [SerializeField] private float radius = 2.0f;

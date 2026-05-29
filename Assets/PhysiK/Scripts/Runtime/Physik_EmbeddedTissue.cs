@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using PhysiK.Unity;
 
-public class Physik_MappedTetMesh : MonoBehaviour
+public class Physik_EmbeddedTissue : MonoBehaviour
 {
     [Header("Host")]
-    [SerializeField] private PhysikCircularTissue tissueHost;
+    [SerializeField] private Physik_MechanicalTissue tissueHost;
 
     [Header("Mapped Tet Mesh")]
     [SerializeField] private int radialSegments = 6;

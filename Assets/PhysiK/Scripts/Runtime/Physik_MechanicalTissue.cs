@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using PhysiK.Unity;
 
-public class PhysikCircularTissue : MonoBehaviour
+public class Physik_MechanicalTissue : MonoBehaviour
 {
     [Header("PhysiK")]
     [SerializeField] private int substeps = 8;

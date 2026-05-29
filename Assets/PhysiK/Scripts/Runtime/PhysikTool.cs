@@ -8,7 +8,7 @@ using UnityEngine.LightTransport;
 public sealed class PhysikTool : MonoBehaviour
 {
     [Header("References")]
-    [SerializeField] private PhysikCircularTissue tissue;
+    [SerializeField] private Physik_MechanicalTissue tissue;
     [SerializeField] private Camera sceneCamera;
 
     [Header("Tool")]
@@ -58,7 +58,7 @@ public sealed class PhysikTool : MonoBehaviour
     {
         if (tissue == null)
         {
-            tissue = FindFirstObjectByType<PhysikCircularTissue>();
+            tissue = FindFirstObjectByType<Physik_MechanicalTissue>();
         }
 
         if (tissue == null || tissue.WorldHandle == IntPtr.Zero)

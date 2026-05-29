@@ -3,10 +3,10 @@ using UnityEngine;
 using PhysiK.Unity;
 
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
-public class Physik_SurfaceExtractedVisualMesh : MonoBehaviour
+public class Physik_EmbeddedTissueSurface : MonoBehaviour
 {
     [Header("Embedded Volumetric Tissue")]
-    [SerializeField] private Physik_MappedTetMesh embeddedVolumetricTissue;
+    [SerializeField] private Physik_EmbeddedTissue embeddedVolumetricTissue;
 
     [Header("Rendering")]
     [SerializeField] private Material surfaceMaterial;

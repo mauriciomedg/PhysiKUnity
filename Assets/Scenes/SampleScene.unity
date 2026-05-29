@@ -130,7 +130,7 @@ GameObject:
   - component: {fileID: 188124103}
   - component: {fileID: 188124102}
   m_Layer: 0
-  m_Name: Physik_CircularTissue
+  m_Name: Physik_MechanicalTissue
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -628,7 +628,7 @@ GameObject:
   - component: {fileID: 1120898956}
   - component: {fileID: 1120898955}
   m_Layer: 0
-  m_Name: Physik_VisualVolumetricTissue
+  m_Name: Physik_EmbeddedTissueSurface
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -648,9 +648,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Physik_SurfaceExtractedVisualMesh
   embeddedVolumetricTissue: {fileID: 1880378786}
   surfaceMaterial: {fileID: 2100000, guid: 9f9e17e9adb2f9140a536c17ff1a707a, type: 2}
-  doubleSidedSurface: 0
   recalculateNormals: 1
-  recalculateBounds: 1
+  recalculateBounds: 0
   logCreation: 1
 --- !u!23 &1120898956
 MeshRenderer:
@@ -1038,7 +1037,7 @@ GameObject:
   - component: {fileID: 1880378789}
   - component: {fileID: 1880378786}
   m_Layer: 0
-  m_Name: Physik_EmbededVolumetricTissue
+  m_Name: Physik_EmbeddedTissue
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1062,7 +1061,7 @@ MonoBehaviour:
   radius: 20
   thickness: 0.12
   yOffset: 0
-  drawWireframe: 0
+  drawWireframe: 1
   wireframeMaterial: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}
   logCreation: 0
 --- !u!4 &1880378789
