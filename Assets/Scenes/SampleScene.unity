@@ -157,7 +157,7 @@ MonoBehaviour:
   radialSegments: 20
   angularSegments: 40
   radius: 20
-  thickness: 1
+  thickness: 2
   material: {fileID: 11400000, guid: 913132e481a04d94c889845813b43839, type: 2}
   boundaryStiffness: 4000
   boundaryDamping: 0
@@ -1042,7 +1042,7 @@ MonoBehaviour:
   radialSegments: 20
   angularSegments: 40
   radius: 20
-  thickness: 0.12
+  thickness: 1
   yOffset: 0
   drawWireframe: 0
   wireframeMaterial: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}

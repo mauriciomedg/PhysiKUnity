@@ -92,14 +92,22 @@ public class Physik_EmbeddedTissue : MonoBehaviour
         thickness = Mathf.Max(0.001f, thickness);
 
         float halfThickness = thickness * 0.5f;
-        Vector3 origin = tissueHost.transform.position + new Vector3(0.0f, yOffset, 0.0f);
+
+        Vector3 origin =
+            tissueHost.transform.position +
+            new Vector3(0.0f, yOffset, 0.0f);
 
         List<Vector3> positions = new List<Vector3>();
         List<int> tets = new List<int>();
-        List<(int a, int b, int c)> bottomTriangles = new List<(int a, int b, int c)>();
 
-        int[,] bottomRingNodes = new int[radialSegments + 1, angularSegments];
-        int[,] topRingNodes = new int[radialSegments + 1, angularSegments];
+        List<(int a, int b, int c)> bottomTriangles =
+            new List<(int a, int b, int c)>();
+
+        int[,] bottomRingNodes =
+            new int[radialSegments + 1, angularSegments];
+
+        int[,] topRingNodes =
+            new int[radialSegments + 1, angularSegments];
 
         int CreateLocalNode(Vector3 position)
         {
@@ -108,8 +116,15 @@ public class Physik_EmbeddedTissue : MonoBehaviour
             return localIndex;
         }
 
-        int bottomCenter = CreateLocalNode(origin + new Vector3(0.0f, -halfThickness, 0.0f));
-        int topCenter = CreateLocalNode(origin + new Vector3(0.0f, halfThickness, 0.0f));
+        int bottomCenter =
+            CreateLocalNode(
+                origin +
+                new Vector3(0.0f, -halfThickness, 0.0f));
+
+        int topCenter =
+            CreateLocalNode(
+                origin +
+                new Vector3(0.0f, halfThickness, 0.0f));
 
         for (int ring = 1; ring <= radialSegments; ++ring)
         {
@@ -117,18 +132,34 @@ public class Physik_EmbeddedTissue : MonoBehaviour
 
             for (int segment = 0; segment < angularSegments; ++segment)
             {
-                float angle = 2.0f * Mathf.PI * segment / angularSegments;
+                float angle =
+                    2.0f *
+                    Mathf.PI *
+                    segment /
+                    angularSegments;
+
                 float x = Mathf.Cos(angle) * r;
                 float z = Mathf.Sin(angle) * r;
 
                 bottomRingNodes[ring, segment] =
-                    CreateLocalNode(origin + new Vector3(x, -halfThickness, z));
+                    CreateLocalNode(
+                        origin +
+                        new Vector3(
+                            x,
+                            -halfThickness,
+                            z));
 
                 topRingNodes[ring, segment] =
-                    CreateLocalNode(origin + new Vector3(x, halfThickness, z));
+                    CreateLocalNode(
+                        origin +
+                        new Vector3(
+                            x,
+                            halfThickness,
+                            z));
             }
         }
 
+        // Center fan.
         for (int segment = 0; segment < angularSegments; ++segment)
         {
             int next = (segment + 1) % angularSegments;
@@ -140,6 +171,7 @@ public class Physik_EmbeddedTissue : MonoBehaviour
             bottomTriangles.Add((a, b, c));
         }
 
+        // Ring bands. Each radial quad becomes two triangles.
         for (int ring = 1; ring < radialSegments; ++ring)
         {
             for (int segment = 0; segment < angularSegments; ++segment)
@@ -151,8 +183,11 @@ public class Physik_EmbeddedTissue : MonoBehaviour
                 int outer0 = bottomRingNodes[ring + 1, segment];
                 int outer1 = bottomRingNodes[ring + 1, next];
 
-                bottomTriangles.Add((inner0, outer0, outer1));
-                bottomTriangles.Add((inner0, outer1, inner1));
+                bottomTriangles.Add(
+                    (inner0, outer0, outer1));
+
+                bottomTriangles.Add(
+                    (inner0, outer1, inner1));
             }
         }
 
@@ -163,31 +198,49 @@ public class Physik_EmbeddedTissue : MonoBehaviour
                 return topCenter;
             }
 
+            // Bottom and top nodes are created in pairs.
             return bottomLocalNode + 1;
         }
 
         foreach ((int a, int b, int c) in bottomTriangles)
         {
-            int at = GetTopLocalNodeFromBottomLocalNode(a);
-            int bt = GetTopLocalNodeFromBottomLocalNode(b);
-            int ct = GetTopLocalNodeFromBottomLocalNode(c);
+            int at =
+                GetTopLocalNodeFromBottomLocalNode(a);
 
-            AddPrismTetsLocal(tets, positions, a, b, c, at, bt, ct);
+            int bt =
+                GetTopLocalNodeFromBottomLocalNode(b);
+
+            int ct =
+                GetTopLocalNodeFromBottomLocalNode(c);
+
+            AddPrismTetsLocal(
+                tets,
+                positions,
+                a,
+                b,
+                c,
+                at,
+                bt,
+                ct);
         }
 
-        nativeRestPositions = new Vec3[positions.Count];
-        mappedVertices = new Vector3[positions.Count];
+        nativeRestPositions =
+            new Vec3[positions.Count];
+
+        mappedVertices =
+            new Vector3[positions.Count];
 
         for (int i = 0; i < positions.Count; ++i)
         {
             Vector3 p = positions[i];
 
-            nativeRestPositions[i] = new Vec3
-            {
-                x = p.x,
-                y = p.y,
-                z = p.z
-            };
+            nativeRestPositions[i] =
+                new Vec3
+                {
+                    x = p.x,
+                    y = p.y,
+                    z = p.z
+                };
 
             mappedVertices[i] = p;
         }
@@ -204,14 +257,18 @@ public class Physik_EmbeddedTissue : MonoBehaviour
         if (PhysiKNative.PHYSIK_IsGeneratedTetMeshHandleValid(
                 generatedTetMeshHandle) == 0)
         {
-            Debug.LogError("Failed to generate mapped tet mesh.", this);
+            Debug.LogError(
+                "Failed to generate mapped tet mesh.",
+                this);
+
             initialized = false;
             return;
         }
 
-        mappedTetMeshHandle = PhysiKNative.PHYSIK_CreateTetMeshComponent(
-            tissueHost.WorldHandle,
-            generatedTetMeshHandle);
+        mappedTetMeshHandle =
+            PhysiKNative.PHYSIK_CreateTetMeshComponent(
+                tissueHost.WorldHandle,
+                generatedTetMeshHandle);
 
         PhysiKNative.PHYSIK_DestroyGeneratedTetMesh(
             generatedTetMeshHandle);
@@ -220,21 +277,28 @@ public class Physik_EmbeddedTissue : MonoBehaviour
                 tissueHost.WorldHandle,
                 mappedTetMeshHandle) == 0)
         {
-            Debug.LogError("Failed to create mapped local TetMeshComponent.", this);
+            Debug.LogError(
+                "Failed to create mapped local TetMeshComponent.",
+                this);
+
             initialized = false;
             return;
         }
 
-        mapperHandle = PhysiKNative.PHYSIK_CreateTetMeshMapperComponent(
-            tissueHost.WorldHandle,
-            tissueHost.TetMeshHandle,
-            mappedTetMeshHandle);
+        mapperHandle =
+            PhysiKNative.PHYSIK_CreateTetMeshMapperComponent(
+                tissueHost.WorldHandle,
+                tissueHost.TetMeshHandle,
+                mappedTetMeshHandle);
 
         if (PhysiKNative.PHYSIK_IsComponentHandleValid(
                 tissueHost.WorldHandle,
                 mapperHandle) == 0)
         {
-            Debug.LogError("Failed to create TetMeshMapperComponent.", this);
+            Debug.LogError(
+                "Failed to create TetMeshMapperComponent.",
+                this);
+
             initialized = false;
             return;
         }
@@ -251,7 +315,8 @@ public class Physik_EmbeddedTissue : MonoBehaviour
         if (logCreation)
         {
             Debug.Log(
-                $"Mapped tet wireframe created. vertices={nativeRestPositions.Length}, " +
+                $"Mapped tet wireframe created. " +
+                $"vertices={nativeRestPositions.Length}, " +
                 $"tets={tetLocalNodeIndices.Length / 4}, " +
                 $"wireEdges={wireframeLineIndices.Length / 2}. " +
                 $"Mapper will auto-build during PHYSIK_Step.",
@@ -261,27 +326,31 @@ public class Physik_EmbeddedTissue : MonoBehaviour
 
     private void UpdateMappedVerticesFromNative()
     {
-        if (mappedVertices == null || mappedTetMeshHandle.IsValid == false)
+        if (mappedVertices == null ||
+            mappedTetMeshHandle.IsValid == false)
         {
             return;
         }
 
         for (int i = 0; i < mappedVertices.Length; ++i)
         {
-            int ok = PhysiKNative.PHYSIK_GetTetMeshLocalCurrentPosition(
-                tissueHost.WorldHandle,
-                mappedTetMeshHandle,
-                i,
-                out float x,
-                out float y,
-                out float z);
+            int ok =
+                PhysiKNative.PHYSIK_GetTetMeshLocalCurrentPosition(
+                    tissueHost.WorldHandle,
+                    mappedTetMeshHandle,
+                    i,
+                    out float x,
+                    out float y,
+                    out float z);
 
             if (ok != 0)
             {
-                mappedVertices[i] = new Vector3(x, y, z);
+                mappedVertices[i] =
+                    new Vector3(x, y, z);
             }
         }
     }
+
     private void EnsureWireframeExists()
     {
         if (wireframeObject == null)
@@ -296,29 +365,47 @@ public class Physik_EmbeddedTissue : MonoBehaviour
             previousActiveTetCount = -1;
         }
     }
+
     private void CreateWireframeVisual()
     {
-        wireframeObject = new GameObject("PhysiK_MappedTetMesh_Wireframe");
-        wireframeObject.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+        wireframeObject =
+            new GameObject(
+                "PhysiK_MappedTetMesh_Wireframe");
 
-        wireframeMeshFilter = wireframeObject.AddComponent<MeshFilter>();
-        wireframeMeshRenderer = wireframeObject.AddComponent<MeshRenderer>();
+        wireframeObject.transform.SetPositionAndRotation(
+            Vector3.zero,
+            Quaternion.identity);
 
-        wireframeMesh = new Mesh
-        {
-            name = "PhysiK_MappedTetMesh_Wireframe_Mesh",
-            indexFormat = UnityEngine.Rendering.IndexFormat.UInt32
-        };
+        wireframeMeshFilter =
+            wireframeObject.AddComponent<MeshFilter>();
+
+        wireframeMeshRenderer =
+            wireframeObject.AddComponent<MeshRenderer>();
+
+        wireframeMesh =
+            new Mesh
+            {
+                name =
+                    "PhysiK_MappedTetMesh_Wireframe_Mesh",
+
+                indexFormat =
+                    UnityEngine.Rendering.IndexFormat.UInt32
+            };
 
         wireframeMesh.MarkDynamic();
-        wireframeMeshFilter.sharedMesh = wireframeMesh;
 
-        wireframeMeshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        wireframeMeshFilter.sharedMesh =
+            wireframeMesh;
+
+        wireframeMeshRenderer.shadowCastingMode =
+            UnityEngine.Rendering.ShadowCastingMode.Off;
+
         wireframeMeshRenderer.receiveShadows = false;
 
         if (wireframeMaterial != null)
         {
-            wireframeMeshRenderer.sharedMaterial = wireframeMaterial;
+            wireframeMeshRenderer.sharedMaterial =
+                wireframeMaterial;
         }
     }
 
@@ -329,9 +416,10 @@ public class Physik_EmbeddedTissue : MonoBehaviour
             return;
         }
 
-        int activeTetCount = PhysiKNative.PHYSIK_GetActiveTetCount(
-            tissueHost.WorldHandle,
-            mappedTetMeshHandle);
+        int activeTetCount =
+            PhysiKNative.PHYSIK_GetActiveTetCount(
+                tissueHost.WorldHandle,
+                mappedTetMeshHandle);
 
         if (activeTetCount == previousActiveTetCount)
         {
@@ -339,18 +427,25 @@ public class Physik_EmbeddedTissue : MonoBehaviour
         }
 
         RebuildWireframeTopology();
-        previousActiveTetCount = activeTetCount;
+
+        previousActiveTetCount =
+            activeTetCount;
     }
 
     private void RebuildWireframeTopology()
     {
-        if (wireframeMesh == null || tetLocalNodeIndices == null)
+        if (wireframeMesh == null ||
+            tetLocalNodeIndices == null)
         {
             return;
         }
 
-        HashSet<(int, int)> uniqueEdges = new HashSet<(int, int)>();
-        int tetCount = tetLocalNodeIndices.Length / 4;
+        HashSet<(int, int)> uniqueEdges =
+            new HashSet<(int, int)>();
+
+        int tetCount =
+            tetLocalNodeIndices.Length /
+            4;
 
         for (int tet = 0; tet < tetCount; ++tet)
         {
@@ -364,10 +459,17 @@ public class Physik_EmbeddedTissue : MonoBehaviour
 
             int baseIndex = tet * 4;
 
-            int a = tetLocalNodeIndices[baseIndex + 0];
-            int b = tetLocalNodeIndices[baseIndex + 1];
-            int c = tetLocalNodeIndices[baseIndex + 2];
-            int d = tetLocalNodeIndices[baseIndex + 3];
+            int a =
+                tetLocalNodeIndices[baseIndex + 0];
+
+            int b =
+                tetLocalNodeIndices[baseIndex + 1];
+
+            int c =
+                tetLocalNodeIndices[baseIndex + 2];
+
+            int d =
+                tetLocalNodeIndices[baseIndex + 3];
 
             AddWireEdge(uniqueEdges, a, b);
             AddWireEdge(uniqueEdges, a, c);
@@ -377,21 +479,31 @@ public class Physik_EmbeddedTissue : MonoBehaviour
             AddWireEdge(uniqueEdges, c, d);
         }
 
-        List<int> lines = new List<int>(uniqueEdges.Count * 2);
+        List<int> lines =
+            new List<int>(
+                uniqueEdges.Count *
+                2);
+
         foreach ((int a, int b) in uniqueEdges)
         {
             lines.Add(a);
             lines.Add(b);
         }
 
-        wireframeLineIndices = lines.ToArray();
+        wireframeLineIndices =
+            lines.ToArray();
 
         wireframeMesh.Clear();
-        wireframeMesh.vertices = mappedVertices;
+
+        wireframeMesh.vertices =
+            mappedVertices;
 
         if (wireframeLineIndices.Length > 0)
         {
-            wireframeMesh.SetIndices(wireframeLineIndices, MeshTopology.Lines, 0);
+            wireframeMesh.SetIndices(
+                wireframeLineIndices,
+                MeshTopology.Lines,
+                0);
         }
 
         wireframeMesh.RecalculateBounds();
@@ -399,22 +511,30 @@ public class Physik_EmbeddedTissue : MonoBehaviour
 
     private void UpdateWireframeVertices()
     {
-        if (wireframeMesh == null || mappedVertices == null)
+        if (wireframeMesh == null ||
+            mappedVertices == null)
         {
             return;
         }
 
-        wireframeMesh.vertices = mappedVertices;
+        wireframeMesh.vertices =
+            mappedVertices;
 
         if (wireframeLineIndices != null)
         {
-            wireframeMesh.SetIndices(wireframeLineIndices, MeshTopology.Lines, 0);
+            wireframeMesh.SetIndices(
+                wireframeLineIndices,
+                MeshTopology.Lines,
+                0);
         }
 
         wireframeMesh.RecalculateBounds();
     }
 
-    private static void AddWireEdge(HashSet<(int, int)> edges, int a, int b)
+    private static void AddWireEdge(
+        HashSet<(int, int)> edges,
+        int a,
+        int b)
     {
         if (a > b)
         {
@@ -434,9 +554,64 @@ public class Physik_EmbeddedTissue : MonoBehaviour
         int bt,
         int ct)
     {
-        AddTetPositiveLocal(tets, positions, a, b, c, at);
-        AddTetPositiveLocal(tets, positions, b, bt, c, at);
-        AddTetPositiveLocal(tets, positions, c, bt, ct, at);
+        SortPrismColumnsByBottomNode(
+            ref a,
+            ref at,
+            ref b,
+            ref bt,
+            ref c,
+            ref ct);
+
+        AddTetPositiveLocal(
+            tets,
+            positions,
+            a,
+            b,
+            c,
+            at);
+
+        AddTetPositiveLocal(
+            tets,
+            positions,
+            b,
+            bt,
+            c,
+            at);
+
+        AddTetPositiveLocal(
+            tets,
+            positions,
+            c,
+            bt,
+            ct,
+            at);
+    }
+
+    private static void SortPrismColumnsByBottomNode(
+        ref int a,
+        ref int at,
+        ref int b,
+        ref int bt,
+        ref int c,
+        ref int ct)
+    {
+        if (a > b)
+        {
+            (a, b) = (b, a);
+            (at, bt) = (bt, at);
+        }
+
+        if (b > c)
+        {
+            (b, c) = (c, b);
+            (bt, ct) = (ct, bt);
+        }
+
+        if (a > b)
+        {
+            (a, b) = (b, a);
+            (at, bt) = (bt, at);
+        }
     }
 
     private static void AddTetPositiveLocal(
@@ -447,9 +622,15 @@ public class Physik_EmbeddedTissue : MonoBehaviour
         int n2,
         int n3)
     {
-        float signedVolume6 = Vector3.Dot(
-            Vector3.Cross(positions[n1] - positions[n0], positions[n2] - positions[n0]),
-            positions[n3] - positions[n0]);
+        float signedVolume6 =
+            Vector3.Dot(
+                Vector3.Cross(
+                    positions[n1] -
+                    positions[n0],
+                    positions[n2] -
+                    positions[n0]),
+                positions[n3] -
+                    positions[n0]);
 
         if (Mathf.Abs(signedVolume6) < 1.0e-10f)
         {
