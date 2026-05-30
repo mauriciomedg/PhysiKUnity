@@ -148,7 +148,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a4c26871ccd6c6e4a86ab904e6cf94a7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PhysikCircularTissue
-  substeps: 2
+  substeps: 1
   useImplicitEuler: 1
   simulationDt: 0.033333335
   maxSimulationStepsPerFrame: 1
@@ -166,7 +166,7 @@ MonoBehaviour:
   avoidBoundaryTetsWhenCutting: 1
   drawSurface: 0
   surfaceMaterial: {fileID: 2100000, guid: 9f9e17e9adb2f9140a536c17ff1a707a, type: 2}
-  doubleSidedSurface: 0
+  recalculateSurfaceBounds: 0
   drawWireframe: 0
   wireframeMaterial: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}
   drawBoundaryMarkers: 0
@@ -1039,9 +1039,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Physik_MappedTetMesh
   tissueHost: {fileID: 188124102}
-  radialSegments: 20
-  angularSegments: 40
-  radius: 20
+  radialSegments: 40
+  angularSegments: 80
+  radius: 19.9
   thickness: 1
   yOffset: 0
   drawWireframe: 0
