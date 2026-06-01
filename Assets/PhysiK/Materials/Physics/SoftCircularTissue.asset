@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eed4512ab9ce540439651bacc69f9b2c, type: 3}
   m_Name: SoftCircularTissue
   m_EditorClassIdentifier: Assembly-CSharp::PhysiK.Unity.PhysikMaterialAsset
-  density: 0.8
-  youngModulus: 20000
+  density: 0.2
+  youngModulus: 100000
   poissonRatio: 0.3
   damping: 0
