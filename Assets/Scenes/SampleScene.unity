@@ -209,7 +209,7 @@ MonoBehaviour:
   lastResidualNorm: 0
   lastSolveConverged: 0
   isBound: 0
-  enableConsoleLogging: 0
+  enableConsoleLogging: 1
   logIntervalSeconds: 1
 --- !u!1 &330585543
 GameObject:
