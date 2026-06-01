@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: SoftCircularTissue
   m_EditorClassIdentifier: Assembly-CSharp::PhysiK.Unity.PhysikMaterialAsset
   density: 0.2
-  youngModulus: 100000
+  youngModulus: 50000
   poissonRatio: 0.3
   damping: 0

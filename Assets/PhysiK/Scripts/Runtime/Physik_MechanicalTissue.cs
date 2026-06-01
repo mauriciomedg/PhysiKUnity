@@ -30,6 +30,10 @@ public class Physik_MechanicalTissue : MonoBehaviour
     [Header("FEM")]
     [SerializeField] private PhysikMaterialAsset material;
 
+    [Header("CG")]
+    [SerializeField]
+    private PhysiK_ConjugateGradientService conjugateGradientService;
+
     [Header("Boundary Point Connections")]
     [SerializeField] private float boundaryStiffness = 20000.0f;
     [SerializeField] private float boundaryDamping = 0.0f;
@@ -56,6 +60,7 @@ public class Physik_MechanicalTissue : MonoBehaviour
     [Header("Point Connection Line Debug Draw")]
     [SerializeField] private bool drawPointConnectionLines = true;
     [SerializeField] private Material pointConnectionLineMaterial;
+        
 
     private bool initialized;
 
@@ -139,6 +144,8 @@ public class Physik_MechanicalTissue : MonoBehaviour
             enabled = false;
             return;
         }
+
+        conjugateGradientService.BindWorld(world);
 
         PhysiKNative.PHYSIK_SetSubstepCount(
             world,
@@ -233,6 +240,12 @@ public class Physik_MechanicalTissue : MonoBehaviour
                steps < maxSimulationStepsPerFrame)
         {
             StepSimulation(simulationDt);
+
+            if (conjugateGradientService != null)
+            {
+                conjugateGradientService.RefreshDiagnostics();
+                conjugateGradientService.LogDiagnostics(simulationDt);
+            }
 
             simulationAccumulator -= simulationDt;
             ++steps;
@@ -2003,6 +2016,8 @@ public class Physik_MechanicalTissue : MonoBehaviour
 
     private void OnDestroy()
     {
+        conjugateGradientService.UnbindWorld();
+
         if (world != IntPtr.Zero)
         {
             PhysiKNative.PHYSIK_DestroyWorld(

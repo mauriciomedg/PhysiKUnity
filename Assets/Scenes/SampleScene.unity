@@ -129,6 +129,7 @@ GameObject:
   m_Component:
   - component: {fileID: 188124103}
   - component: {fileID: 188124102}
+  - component: {fileID: 188124104}
   m_Layer: 0
   m_Name: Physik_MechanicalTissue
   m_TagString: Untagged
@@ -159,6 +160,7 @@ MonoBehaviour:
   radius: 20
   thickness: 0.5
   material: {fileID: 11400000, guid: 913132e481a04d94c889845813b43839, type: 2}
+  conjugateGradientService: {fileID: 188124104}
   boundaryStiffness: 4000
   boundaryDamping: 0
   radialBoundaryOffset: 1
@@ -189,6 +191,26 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &188124104
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 188124101}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 307b038e8fb942f469ffe94a1fe1ce91, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PhysiK_ConjugateGradientService
+  tolerance: 0.001
+  maxIterations: 128
+  lastIterations: 0
+  lastResidualNorm: 0
+  lastSolveConverged: 0
+  isBound: 0
+  enableConsoleLogging: 0
+  logIntervalSeconds: 1
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0

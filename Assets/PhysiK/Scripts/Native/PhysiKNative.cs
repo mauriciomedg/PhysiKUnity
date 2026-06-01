@@ -427,4 +427,34 @@ public static class PhysiKNative
             out float outY,
             out float outZ);
 
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void PHYSIK_SetConjugateGradientTolerance(
+        IntPtr world,
+        float tolerance);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern float PHYSIK_GetConjugateGradientTolerance(
+        IntPtr world);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void PHYSIK_SetConjugateGradientMaxIterations(
+        IntPtr world,
+        int maxIterations);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_GetConjugateGradientMaxIterations(
+        IntPtr world);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_GetLastConjugateGradientIterations(
+        IntPtr world);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern float PHYSIK_GetLastConjugateGradientResidualNorm(
+        IntPtr world);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PHYSIK_DidLastConjugateGradientSolveConverge(
+        IntPtr world);
+
 }
