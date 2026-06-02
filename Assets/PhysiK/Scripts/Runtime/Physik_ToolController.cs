@@ -18,7 +18,10 @@ public sealed class Physik_ToolController : MonoBehaviour
     [Header("Possession")]
     [SerializeField] private ToolMode initialMode = ToolMode.Grasping;
 
-    [Header("Vertical Movement")]
+    [Header("Mouse Horizontal Movement")]
+    [SerializeField] private float mouseProjectionPlaneY = 0.0f;
+
+    [Header("World Vertical Movement")]
     [SerializeField] private float verticalSpeed = 1.5f;
 
     private ToolMode currentMode;
@@ -123,7 +126,7 @@ public sealed class Physik_ToolController : MonoBehaviour
                     Vector3.up,
                     new Vector3(
                         0.0f,
-                        position.y,
+                        mouseProjectionPlaneY,
                         0.0f));
 
             if (movementPlane.Raycast(
