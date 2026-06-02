@@ -10,9 +10,6 @@ public sealed class Physik_CutTool : MonoBehaviour
     [Header("Mechanical Tissue")]
     [SerializeField] private Physik_MechanicalTissue tissue;
 
-    [Header("Cutting")]
-    [SerializeField] private int maxCutsPerFrame = 8;
-
     [Header("Physical Interaction")]
     [SerializeField] private float connectionStiffness = 10000.0f;
     [SerializeField] private float connectionDamping = 0.0f;
@@ -184,13 +181,6 @@ public sealed class Physik_CutTool : MonoBehaviour
                 overlaps,
                 overlaps.Length);
 
-        int safeMaxCutsPerFrame =
-            Mathf.Max(
-                1,
-                maxCutsPerFrame);
-
-        int cuts = 0;
-
         for (int i = 0;
              i < written;
              ++i)
@@ -208,16 +198,8 @@ public sealed class Physik_CutTool : MonoBehaviour
                 continue;
             }
 
-            if (tissue.DeactivateTet(
-                    overlaps[i].primitiveIndex))
-            {
-                ++cuts;
-
-                if (cuts >= safeMaxCutsPerFrame)
-                {
-                    break;
-                }
-            }
+            tissue.DeactivateTet(
+                overlaps[i].primitiveIndex);
         }
     }
 
