@@ -4,22 +4,10 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using PhysiK.Unity;
 
-public class Physik_MechanicalTissue : MonoBehaviour
+public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
 {
-    [Header("PhysiK")]
-    [SerializeField] private int substeps = 8;
-    [SerializeField] private bool useImplicitEuler = true;
-
-    [Header("Simulation Loop")]
-    [SerializeField] private float simulationDt = 1.0f / 30.0f;
-    [SerializeField] private int maxSimulationStepsPerFrame = 1;
-
-    [Header("Gravity")]
-    [SerializeField]
-    private Vector3 gravity =
-        new Vector3(0.0f, -9.81f, 0.0f);
-
-    [SerializeField] private bool applyGravityEveryStep = true;
+    [Header("PhysiK World")]
+    [SerializeField] private Physik_World physikWorld;
 
     [Header("Radial Circular Tissue Mesh")]
     [SerializeField] private int radialSegments = 6;
@@ -29,10 +17,6 @@ public class Physik_MechanicalTissue : MonoBehaviour
 
     [Header("FEM")]
     [SerializeField] private PhysikMaterialAsset material;
-
-    [Header("CG")]
-    [SerializeField]
-    private PhysiK_ConjugateGradientService conjugateGradientService;
 
     [Header("Boundary Point Connections")]
     [SerializeField] private float boundaryStiffness = 20000.0f;
@@ -60,7 +44,7 @@ public class Physik_MechanicalTissue : MonoBehaviour
     [Header("Point Connection Line Debug Draw")]
     [SerializeField] private bool drawPointConnectionLines = true;
     [SerializeField] private Material pointConnectionLineMaterial;
-        
+
 
     private bool initialized;
 
@@ -84,7 +68,6 @@ public class Physik_MechanicalTissue : MonoBehaviour
     private Vector3[] boundaryAnchorPositions;
 
     private System.Random random;
-    private float simulationAccumulator;
 
     // Used only by the temporary tet wireframe debug draw.
     private bool topologyDirty = true;
@@ -129,37 +112,44 @@ public class Physik_MechanicalTissue : MonoBehaviour
 
     public float TissuePlaneY => transform.position.y;
 
-    private void Awake()
+    private void Start()
     {
-        random = new System.Random(randomSeed);
+        random =
+            new System.Random(
+                randomSeed);
 
-        world = PhysiKNative.PHYSIK_CreateWorld();
+        if (physikWorld == null)
+        {
+            Debug.LogError(
+                "Physik_World is not assigned.",
+                this);
+
+            enabled =
+                false;
+
+            return;
+        }
+
+        world =
+            physikWorld.WorldHandle;
 
         if (world == IntPtr.Zero)
         {
             Debug.LogError(
-                "Failed to create PhysiK world.",
+                "Physik_World has not created its native world.",
                 this);
 
-            enabled = false;
+            enabled =
+                false;
+
             return;
         }
 
-        conjugateGradientService.BindWorld(world);
-
-        PhysiKNative.PHYSIK_SetSubstepCount(
-            world,
-            Mathf.Max(1, substeps));
-
-        PhysiKNative.PHYSIK_SetSolverMode(
-            world,
-            useImplicitEuler ? 1 : 0);
-
-        ApplyGravityToNative();
-
         if (!CreateRadialCircularTissueTetMesh())
         {
-            enabled = false;
+            enabled =
+                false;
+
             return;
         }
 
@@ -167,7 +157,9 @@ public class Physik_MechanicalTissue : MonoBehaviour
         {
             if (!CreateNativeSurfaceVisualComponents())
             {
-                enabled = false;
+                enabled =
+                    false;
+
                 return;
             }
 
@@ -216,12 +208,17 @@ public class Physik_MechanicalTissue : MonoBehaviour
             $"Press R to remove one random interior tet.",
             this);
 
-        initialized = true;
+        initialized =
+            true;
+
+        physikWorld.RegisterParticipant(
+            this);
     }
 
     private void Update()
     {
-        if (world == IntPtr.Zero)
+        if (!initialized ||
+            world == IntPtr.Zero)
         {
             return;
         }
@@ -231,29 +228,25 @@ public class Physik_MechanicalTissue : MonoBehaviour
         {
             RemoveOneRandomTet();
         }
+    }
 
-        simulationAccumulator += Time.deltaTime;
-
-        int steps = 0;
-
-        while (simulationAccumulator >= simulationDt &&
-               steps < maxSimulationStepsPerFrame)
+    public void OnPhysikBeforeSimulationStep(float dt)
+    {
+        if (!initialized ||
+            world == IntPtr.Zero)
         {
-            StepSimulation(simulationDt);
-
-            if (conjugateGradientService != null)
-            {
-                conjugateGradientService.RefreshDiagnostics();
-                conjugateGradientService.LogDiagnostics(simulationDt);
-            }
-
-            simulationAccumulator -= simulationDt;
-            ++steps;
+            return;
         }
 
-        if (steps == maxSimulationStepsPerFrame)
+        AddBoundaryPointConnections();
+    }
+
+    public void OnPhysikAfterSimulationFrame()
+    {
+        if (!initialized ||
+            world == IntPtr.Zero)
         {
-            simulationAccumulator = 0.0f;
+            return;
         }
 
         UpdateNodeWorldPositions();
@@ -283,21 +276,17 @@ public class Physik_MechanicalTissue : MonoBehaviour
             UpdatePointConnectionLineVertices();
         }
 
-        topologyDirty = false;
+        topologyDirty =
+            false;
     }
 
-    private void StepSimulation(float dt)
+    public void OnPhysikWorldDestroyed()
     {
-        if (applyGravityEveryStep)
-        {
-            ApplyGravityToNative();
-        }
+        initialized =
+            false;
 
-        AddBoundaryPointConnections();
-
-        PhysiKNative.PHYSIK_Step(
-            world,
-            dt);
+        world =
+            IntPtr.Zero;
     }
 
     private bool CreateRadialCircularTissueTetMesh()
@@ -1950,82 +1939,19 @@ public class Physik_MechanicalTissue : MonoBehaviour
         pointConnectionLineMesh.RecalculateBounds();
     }
 
-    private void ApplyGravityToNative()
-    {
-        if (world == IntPtr.Zero)
-        {
-            return;
-        }
-
-        PhysiKNative.PHYSIK_SetGravity(
-            world,
-            gravity.x,
-            gravity.y,
-            gravity.z);
-    }
-
-    [ContextMenu("Remove One Random Tet")]
-    private void RemoveOneRandomTetContextMenu()
-    {
-        if (!Application.isPlaying)
-        {
-            Debug.Log(
-                "Enter Play Mode first.",
-                this);
-
-            return;
-        }
-
-        RemoveOneRandomTet();
-    }
-
-    [ContextMenu("Apply Gravity To Native")]
-    private void ApplyGravityContextMenu()
-    {
-        if (!Application.isPlaying)
-        {
-            Debug.Log(
-                "Enter Play Mode first. Native world does not exist yet.",
-                this);
-
-            return;
-        }
-
-        ApplyGravityToNative();
-
-        Debug.Log(
-            $"Gravity applied to native: " +
-            $"({gravity.x:F6}, {gravity.y:F6}, {gravity.z:F6})",
-            this);
-    }
-
-    [ContextMenu("Reset Gravity To Unity Default")]
-    private void ResetGravityToUnityDefault()
-    {
-        gravity =
-            new Vector3(
-                0.0f,
-                -9.81f,
-                0.0f);
-
-        Debug.Log(
-            $"Gravity reset to default: " +
-            $"({gravity.x:F6}, {gravity.y:F6}, {gravity.z:F6})",
-            this);
-    }
-
     private void OnDestroy()
     {
-        conjugateGradientService.UnbindWorld();
-
-        if (world != IntPtr.Zero)
+        if (physikWorld != null)
         {
-            PhysiKNative.PHYSIK_DestroyWorld(
-                world);
-
-            world =
-                IntPtr.Zero;
+            physikWorld.UnregisterParticipant(
+                this);
         }
+
+        initialized =
+            false;
+
+        world =
+            IntPtr.Zero;
 
         if (surfaceObject != null)
         {
@@ -2052,3 +1978,4 @@ public class Physik_MechanicalTissue : MonoBehaviour
         }
     }
 }
+
