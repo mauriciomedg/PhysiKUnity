@@ -23,10 +23,6 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
     [SerializeField] private float boundaryDamping = 0.0f;
     [SerializeField] private float radialBoundaryOffset = 0.15f;
 
-    [Header("Runtime Cutting")]
-    [SerializeField] private int randomSeed = 12345;
-    [SerializeField] private bool avoidBoundaryTetsWhenCutting = true;
-
     [Header("Native Surface Visual")]
     [SerializeField] private bool drawSurface = true;
     [SerializeField] private Material surfaceMaterial;
@@ -66,8 +62,6 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
     private int[] boundaryLocalNodeIndices;
     private bool[] boundaryLocalNodeMask;
     private Vector3[] boundaryAnchorPositions;
-
-    private System.Random random;
 
     // Used only by the temporary tet wireframe debug draw.
     private bool topologyDirty = true;
@@ -114,10 +108,6 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
 
     private void Start()
     {
-        random =
-            new System.Random(
-                randomSeed);
-
         if (physikWorld == null)
         {
             Debug.LogError(
@@ -221,12 +211,6 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
             world == IntPtr.Zero)
         {
             return;
-        }
-
-        if (Keyboard.current != null &&
-            Keyboard.current.rKey.wasPressedThisFrame)
-        {
-            RemoveOneRandomTet();
         }
     }
 
@@ -1254,113 +1238,6 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
         topologyDirty = true;
 
         return true;
-    }
-
-    private void RemoveOneRandomTet()
-    {
-        if (world == IntPtr.Zero ||
-            tetLocalNodeIndices == null)
-        {
-            return;
-        }
-
-        int totalTetCount =
-            tetLocalNodeIndices.Length /
-            4;
-
-        if (totalTetCount <= 0)
-        {
-            return;
-        }
-
-        int activeBefore =
-            PhysiKNative.PHYSIK_GetActiveTetCount(
-                world,
-                tetMesh);
-
-        if (activeBefore <= 0)
-        {
-            Debug.Log(
-                "No active tets left to remove.",
-                this);
-
-            return;
-        }
-
-        int selectedTet =
-            -1;
-
-        for (int attempt = 0;
-             attempt < 128;
-             ++attempt)
-        {
-            int candidate =
-                random.Next(
-                    0,
-                    totalTetCount);
-
-            if (PhysiKNative.PHYSIK_IsTetActive(
-                    world,
-                    tetMesh,
-                    candidate) != 0 &&
-                (!avoidBoundaryTetsWhenCutting ||
-                 !TetTouchesBoundary(candidate)))
-            {
-                selectedTet =
-                    candidate;
-
-                break;
-            }
-        }
-
-        if (selectedTet < 0)
-        {
-            for (int tet = 0;
-                 tet < totalTetCount;
-                 ++tet)
-            {
-                if (PhysiKNative.PHYSIK_IsTetActive(
-                        world,
-                        tetMesh,
-                        tet) != 0 &&
-                    (!avoidBoundaryTetsWhenCutting ||
-                     !TetTouchesBoundary(tet)))
-                {
-                    selectedTet =
-                        tet;
-
-                    break;
-                }
-            }
-        }
-
-        if (selectedTet < 0)
-        {
-            Debug.Log(
-                "Could not find an active interior tet to remove.",
-                this);
-
-            return;
-        }
-
-        PhysiKNative.PHYSIK_DeactivateTet(
-            world,
-            tetMesh,
-            selectedTet);
-
-        int activeAfter =
-            PhysiKNative.PHYSIK_GetActiveTetCount(
-                world,
-                tetMesh);
-
-        topologyDirty = true;
-
-        Debug.Log(
-            $"Removed random tet {selectedTet}. " +
-            $"activeTets={activeAfter}, " +
-            $"removedTets={totalTetCount - activeAfter}, " +
-            $"totalTets={totalTetCount}",
-            this);
     }
 
     private void UpdateNodeWorldPositions()
