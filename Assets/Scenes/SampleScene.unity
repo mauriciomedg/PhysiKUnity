@@ -129,6 +129,7 @@ GameObject:
   m_Component:
   - component: {fileID: 188124103}
   - component: {fileID: 188124102}
+  - component: {fileID: 188124104}
   m_Layer: 0
   m_Name: Physik_MechanicalTissue
   m_TagString: Untagged
@@ -154,21 +155,11 @@ MonoBehaviour:
   radius: 20
   thickness: 0.5
   material: {fileID: 11400000, guid: 913132e481a04d94c889845813b43839, type: 2}
-  boundaryStiffness: 4000
-  boundaryDamping: 0
-  radialBoundaryOffset: 1
-  randomSeed: 12345
-  avoidBoundaryTetsWhenCutting: 1
   drawSurface: 0
   surfaceMaterial: {fileID: 2100000, guid: 9f9e17e9adb2f9140a536c17ff1a707a, type: 2}
   recalculateSurfaceBounds: 0
   drawWireframe: 0
   wireframeMaterial: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}
-  drawBoundaryMarkers: 0
-  boundaryMarkerMaterial: {fileID: 10306, guid: 0000000000000000f000000000000000, type: 0}
-  boundaryMarkerRadius: 0.035
-  drawPointConnectionLines: 0
-  pointConnectionLineMaterial: {fileID: 10306, guid: 0000000000000000f000000000000000, type: 0}
 --- !u!4 &188124103
 Transform:
   m_ObjectHideFlags: 0
@@ -184,6 +175,27 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &188124104
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 188124101}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5247de1bd677ed24f92d47c5898a40cd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Physik_BoundaryConnections
+  mechanicalTissue: {fileID: 188124102}
+  boundaryStiffness: 4000
+  boundaryDamping: 0
+  radialBoundaryOffset: 1
+  drawBoundaryMarkers: 0
+  boundaryMarkerMaterial: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}
+  boundaryMarkerRadius: 0.035
+  drawPointConnectionLines: 0
+  pointConnectionLineMaterial: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
