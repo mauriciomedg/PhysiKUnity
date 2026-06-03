@@ -150,10 +150,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PhysikCircularTissue
   physikWorld: {fileID: 1103873814}
-  radialSegments: 20
-  angularSegments: 40
   radius: 20
   thickness: 0.5
+  innerBandRadius: 5
+  innerRadialSegments: 3
+  innerAngularSegments: 12
+  middleBandRadius: 11
+  middleRadialSegments: 4
+  middleAngularSegments: 24
+  outerRadialSegments: 10
+  outerAngularSegments: 72
   material: {fileID: 11400000, guid: 913132e481a04d94c889845813b43839, type: 2}
   drawSurface: 0
   surfaceMaterial: {fileID: 2100000, guid: 9f9e17e9adb2f9140a536c17ff1a707a, type: 2}
@@ -188,13 +194,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Physik_BoundaryConnections
   mechanicalTissue: {fileID: 188124102}
-  boundaryStiffness: 40000
+  boundaryStiffness: 1000000
   boundaryDamping: 0
   radialBoundaryOffset: 1
   drawBoundaryMarkers: 0
   boundaryMarkerMaterial: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}
   boundaryMarkerRadius: 0.035
-  drawPointConnectionLines: 0
+  drawPointConnectionLines: 1
   pointConnectionLineMaterial: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}
 --- !u!1 &330585543
 GameObject:
@@ -366,7 +372,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Physik_CutTool
   tissue: {fileID: 188124102}
-  connectionStiffness: 10000
+  connectionStiffness: 50000
   connectionDamping: 0
 --- !u!135 &356587376
 SphereCollider:
@@ -733,9 +739,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Physik_GraspingTool
   tissue: {fileID: 188124102}
-  graspStiffness: 100000
+  graspStiffness: 500000
   graspDamping: 0
-  collisionConnectionStiffness: 10000
+  collisionConnectionStiffness: 50000
   collisionConnectionDamping: 0
 --- !u!135 &765406667
 SphereCollider:
@@ -929,11 +935,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ca90f40f548b4b843aa1f2a6049bf02f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Physik_World
-  substeps: 1
+  substeps: 2
   useImplicitEuler: 1
   simulationDt: 0.033333335
   maxSimulationStepsPerFrame: 1
-  gravity: {x: 0, y: -9.81, z: 0}
+  gravity: {x: 0, y: -950, z: 0}
   applyGravityEveryStep: 1
   conjugateGradientService: {fileID: 1103873813}
 --- !u!4 &1103873815

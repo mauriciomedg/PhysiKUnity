@@ -3,35 +3,91 @@ using System.Collections.Generic;
 using UnityEngine;
 using PhysiK.Unity;
 
-public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
+public class Physik_MechanicalTissue :
+    MonoBehaviour,
+    IPhysikWorldParticipant
 {
     [Header("PhysiK World")]
-    [SerializeField] private Physik_World physikWorld;
+    [SerializeField]
+    private Physik_World physikWorld;
 
-    [Header("Radial Circular Tissue Mesh")]
-    [SerializeField] private int radialSegments = 6;
-    [SerializeField] private int angularSegments = 30;
-    [SerializeField] private float radius = 2.0f;
-    [SerializeField] private float thickness = 0.12f;
+    [Header("Graded Circular Tissue Mesh")]
+    [SerializeField]
+    private float radius =
+        20.0f;
+
+    [SerializeField]
+    private float thickness =
+        0.8f;
+
+    [Header("Inner Band")]
+    [SerializeField]
+    private float innerBandRadius =
+        5.0f;
+
+    [SerializeField]
+    private int innerRadialSegments =
+        3;
+
+    [SerializeField]
+    private int innerAngularSegments =
+        12;
+
+    [Header("Middle Band")]
+    [SerializeField]
+    private float middleBandRadius =
+        11.0f;
+
+    [SerializeField]
+    private int middleRadialSegments =
+        3;
+
+    [SerializeField]
+    private int middleAngularSegments =
+        24;
+
+    [Header("Outer Band")]
+    [SerializeField]
+    private int outerRadialSegments =
+        5;
+
+    [SerializeField]
+    private int outerAngularSegments =
+        48;
 
     [Header("FEM")]
-    [SerializeField] private PhysikMaterialAsset material;
+    [SerializeField]
+    private PhysikMaterialAsset material;
 
     [Header("Native Surface Visual")]
-    [SerializeField] private bool drawSurface = true;
-    [SerializeField] private Material surfaceMaterial;
-    [SerializeField] private bool recalculateSurfaceBounds = true;
+    [SerializeField]
+    private bool drawSurface =
+        true;
+
+    [SerializeField]
+    private Material surfaceMaterial;
+
+    [SerializeField]
+    private bool recalculateSurfaceBounds =
+        true;
 
     [Header("Tet Wireframe Debug Draw")]
-    [SerializeField] private bool drawWireframe = true;
-    [SerializeField] private Material wireframeMaterial;
+    [SerializeField]
+    private bool drawWireframe =
+        true;
+
+    [SerializeField]
+    private Material wireframeMaterial;
 
     private bool initialized;
 
-    private IntPtr world = IntPtr.Zero;
+    private IntPtr world =
+        IntPtr.Zero;
 
     private PhysiKComponentHandle tetMesh;
+
     private PhysiKComponentHandle surfaceExtractionHandle;
+
     private PhysiKComponentHandle surfaceVisualHandle;
 
     // Generated local node index -> World global node index.
@@ -44,42 +100,79 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
     private Vector3[] nodeWorldPositions;
 
     // Used only by the temporary tet wireframe debug draw.
-    private bool topologyDirty = true;
+    private bool topologyDirty =
+        true;
 
     // Native surface visual.
     private GameObject surfaceObject;
+
     private Mesh surfaceMesh;
+
     private MeshFilter surfaceMeshFilter;
+
     private MeshRenderer surfaceMeshRenderer;
 
     private Vector3[] surfaceVertices;
+
     private Vector3[] surfaceNormals;
+
     private int[] surfaceTriangleIndices;
 
     // Tet wireframe debug draw.
     private GameObject wireframeObject;
+
     private Mesh wireframeMesh;
+
     private MeshFilter wireframeMeshFilter;
+
     private MeshRenderer wireframeMeshRenderer;
+
     private int[] wireframeLineIndices;
 
-    public bool IsInitialized => initialized;
+    private sealed class RadialRing
+    {
+        public float radius;
 
-    public IntPtr WorldHandle => world;
+        public int[] bottomNodes;
 
-    public PhysiKComponentHandle TetMeshHandle => tetMesh;
+        public RadialRing(
+            float valueRadius,
+            int angularSegments)
+        {
+            radius =
+                valueRadius;
 
-    public float TissuePlaneY => transform.position.y;
+            bottomNodes =
+                new int[angularSegments];
+        }
+    }
 
-    public Physik_World WorldOwner => physikWorld;
+    public bool IsInitialized =>
+        initialized;
 
-    public int[] GlobalNodeIndices => nodes;
+    public IntPtr WorldHandle =>
+        world;
 
-    public Vector3[] NodeWorldPositions => nodeWorldPositions;
+    public PhysiKComponentHandle TetMeshHandle =>
+        tetMesh;
 
-    public float TissueRadius => radius;
+    public float TissuePlaneY =>
+        transform.position.y;
 
-    public Vector3 TissueCenter => transform.position;
+    public Physik_World WorldOwner =>
+        physikWorld;
+
+    public int[] GlobalNodeIndices =>
+        nodes;
+
+    public Vector3[] NodeWorldPositions =>
+        nodeWorldPositions;
+
+    public float TissueRadius =>
+        radius;
+
+    public Vector3 TissueCenter =>
+        transform.position;
 
     private void Start()
     {
@@ -110,7 +203,7 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
             return;
         }
 
-        if (!CreateRadialCircularTissueTetMesh())
+        if (!CreateGradedCircularTissueTetMesh())
         {
             enabled =
                 false;
@@ -129,13 +222,16 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
             }
 
             CreateSurfaceVisual();
+
             UpdateSurfaceVisualFromNative();
         }
 
         if (drawWireframe)
         {
             CreateWireframeVisual();
+
             RebuildWireframeTopology();
+
             UpdateWireframeVertices();
         }
 
@@ -155,12 +251,15 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
             this);
 
         Debug.Log(
-            $"Radial tissue created. " +
+            $"Graded circular tissue created. " +
             $"nodes={nodes.Length}, " +
             $"totalTets={totalTetCount}, " +
             $"activeTets={activeTetCount}, " +
-            $"radialSegments={radialSegments}, " +
-            $"angularSegments={angularSegments}.",
+            $"radius={radius}, " +
+            $"thickness={thickness}, " +
+            $"innerAngularSegments={innerAngularSegments}, " +
+            $"middleAngularSegments={middleAngularSegments}, " +
+            $"outerAngularSegments={outerAngularSegments}.",
             this);
     }
 
@@ -173,7 +272,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
         }
     }
 
-    public void OnPhysikBeforeSimulationStep(float dt)
+    public void OnPhysikBeforeSimulationStep(
+        float dt)
     {
         if (!initialized ||
             world == IntPtr.Zero)
@@ -181,7 +281,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
             return;
         }
 
-        // Boundary point connections are pushed by Physik_BoundaryConnections.
+        // Boundary point connections are pushed by
+        // Physik_BoundaryConnections.
     }
 
     public void OnPhysikAfterSimulationFrame()
@@ -222,7 +323,7 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
             IntPtr.Zero;
     }
 
-    private bool CreateRadialCircularTissueTetMesh()
+    private bool CreateGradedCircularTissueTetMesh()
     {
         if (material == null)
         {
@@ -233,10 +334,7 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
             return false;
         }
 
-        radialSegments = Mathf.Max(1, radialSegments);
-        angularSegments = Mathf.Max(8, angularSegments);
-        radius = Mathf.Max(0.01f, radius);
-        thickness = Mathf.Max(0.001f, thickness);
+        SanitizeMeshParameters();
 
         Vector3 origin =
             transform.position;
@@ -254,10 +352,11 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
         List<(int a, int b, int c)> triangles2D =
             new List<(int a, int b, int c)>();
 
-        int[,] bottomRingNodes =
-            new int[radialSegments + 1, angularSegments];
+        List<RadialRing> rings =
+            new List<RadialRing>();
 
-        int CreateLocalNode(Vector3 worldPosition)
+        int CreateLocalNode(
+            Vector3 worldPosition)
         {
             int localIndex =
                 rawPositions.Count;
@@ -284,127 +383,90 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
                     halfThickness,
                     0.0f));
 
-        for (int ring = 1;
-             ring <= radialSegments;
-             ++ring)
+        AddBandRings(
+            rings,
+            rawPositions,
+            origin,
+            halfThickness,
+            0.0f,
+            innerBandRadius,
+            innerRadialSegments,
+            innerAngularSegments,
+            CreateLocalNode);
+
+        AddBandRings(
+            rings,
+            rawPositions,
+            origin,
+            halfThickness,
+            innerBandRadius,
+            middleBandRadius,
+            middleRadialSegments,
+            middleAngularSegments,
+            CreateLocalNode);
+
+        AddBandRings(
+            rings,
+            rawPositions,
+            origin,
+            halfThickness,
+            middleBandRadius,
+            radius,
+            outerRadialSegments,
+            outerAngularSegments,
+            CreateLocalNode);
+
+        if (rings.Count == 0)
         {
-            float ringRadius =
-                radius *
-                ring /
-                radialSegments;
+            Debug.LogError(
+                "The graded radial mesh did not generate any rings.",
+                this);
 
-            for (int segment = 0;
-                 segment < angularSegments;
-                 ++segment)
-            {
-                float angle =
-                    2.0f *
-                    Mathf.PI *
-                    segment /
-                    angularSegments;
-
-                float x =
-                    Mathf.Cos(angle) *
-                    ringRadius;
-
-                float z =
-                    Mathf.Sin(angle) *
-                    ringRadius;
-
-                // Bottom and top nodes are intentionally created in pairs.
-                bottomRingNodes[ring, segment] =
-                    CreateLocalNode(
-                        origin +
-                        new Vector3(
-                            x,
-                            -halfThickness,
-                            z));
-
-                CreateLocalNode(
-                    origin +
-                    new Vector3(
-                        x,
-                        halfThickness,
-                        z));
-            }
+            return false;
         }
 
-        // Center fan.
-        for (int segment = 0;
-             segment < angularSegments;
-             ++segment)
+        AddCenterFanTriangles(
+            triangles2D,
+            bottomCenter,
+            rings[0].bottomNodes);
+
+        for (int ringIndex = 0;
+             ringIndex < rings.Count - 1;
+             ++ringIndex)
         {
-            int next =
-                (segment + 1) %
-                angularSegments;
-
-            int a =
-                bottomCenter;
-
-            int b =
-                bottomRingNodes[1, segment];
-
-            int c =
-                bottomRingNodes[1, next];
-
-            triangles2D.Add(
-                (a, b, c));
-        }
-
-        // Ring bands. Each radial quad becomes two triangles.
-        for (int ring = 1;
-             ring < radialSegments;
-             ++ring)
-        {
-            for (int segment = 0;
-                 segment < angularSegments;
-                 ++segment)
-            {
-                int next =
-                    (segment + 1) %
-                    angularSegments;
-
-                int inner0 =
-                    bottomRingNodes[ring, segment];
-
-                int inner1 =
-                    bottomRingNodes[ring, next];
-
-                int outer0 =
-                    bottomRingNodes[ring + 1, segment];
-
-                int outer1 =
-                    bottomRingNodes[ring + 1, next];
-
-                triangles2D.Add(
-                    (inner0, outer0, outer1));
-
-                triangles2D.Add(
-                    (inner0, outer1, inner1));
-            }
+            StitchRadialRings(
+                triangles2D,
+                rings[ringIndex].bottomNodes,
+                rings[ringIndex + 1].bottomNodes);
         }
 
         int GetTopLocalNodeFromBottomLocalNode(
             int bottomLocalNode)
         {
-            if (bottomLocalNode == bottomCenter)
+            if (bottomLocalNode ==
+                bottomCenter)
             {
                 return topCenter;
             }
 
-            return bottomLocalNode + 1;
+            return bottomLocalNode +
+                1;
         }
 
-        foreach ((int a, int b, int c) in triangles2D)
+        foreach ((int a, int b, int c)
+                 in triangles2D)
         {
             int at =
-                GetTopLocalNodeFromBottomLocalNode(a);
+                GetTopLocalNodeFromBottomLocalNode(
+                    a);
 
             int bt =
-                GetTopLocalNodeFromBottomLocalNode(b);
+                GetTopLocalNodeFromBottomLocalNode(
+                    b);
 
             int ct =
-                GetTopLocalNodeFromBottomLocalNode(c);
+                GetTopLocalNodeFromBottomLocalNode(
+                    c);
 
             AddPrismTets(
                 rawTetLocalNodeIndices,
@@ -430,9 +492,14 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
             nativeRawPositions[i] =
                 new Vec3
                 {
-                    x = position.x,
-                    y = position.y,
-                    z = position.z
+                    x =
+                        position.x,
+
+                    y =
+                        position.y,
+
+                    z =
+                        position.z
                 };
         }
 
@@ -444,10 +511,12 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
                 nativeRawPositions,
                 nativeRawPositions.Length,
                 rawTets,
-                rawTets.Length / 4);
+                rawTets.Length /
+                4);
 
         if (PhysiKNative.PHYSIK_IsGeneratedTetMeshHandleValid(
-                generatedTetMesh) == 0)
+                generatedTetMesh) ==
+            0)
         {
             Debug.LogError(
                 "Failed to generate clean tet mesh.",
@@ -481,10 +550,11 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
 
             if (PhysiKNative.PHYSIK_IsComponentHandleValid(
                     world,
-                    tetMesh) == 0)
+                    tetMesh) ==
+                0)
             {
                 Debug.LogError(
-                    "Radial circular tissue TetMesh physics component creation failed.",
+                    "Graded circular tissue TetMesh physics component creation failed.",
                     this);
 
                 return false;
@@ -495,7 +565,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
                     world,
                     tetMesh);
 
-            if (globalNodeCount <= 0)
+            if (globalNodeCount <=
+                0)
             {
                 Debug.LogError(
                     "Tet mesh physics component has no global nodes.",
@@ -504,7 +575,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
                 return false;
             }
 
-            if (globalNodeCount != generatedPositions.Length)
+            if (globalNodeCount !=
+                generatedPositions.Length)
             {
                 Debug.LogError(
                     $"Generated mesh node count does not match physics component node count. " +
@@ -528,7 +600,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
                         tetMesh,
                         localNode);
 
-                if (nodes[localNode] < 0)
+                if (nodes[localNode] <
+                    0)
                 {
                     Debug.LogError(
                         $"Failed to resolve global node for local node {localNode}.",
@@ -554,13 +627,14 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
                     tetMesh);
 
             Debug.Log(
-                $"Tissue generated and registered. " +
+                $"Graded tissue generated and registered. " +
                 $"rawNodes={rawPositions.Count}, " +
                 $"generatedNodes={nodes.Length}, " +
                 $"rawTets={rawTets.Length / 4}, " +
                 $"generatedTets={totalTetCount}, " +
                 $"activeTets={activeTetCount}, " +
-                $"2DTriangles={triangles2D.Count}.",
+                $"2DTriangles={triangles2D.Count}, " +
+                $"rings={rings.Count}.",
                 this);
 
             return true;
@@ -569,6 +643,318 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
         {
             PhysiKNative.PHYSIK_DestroyGeneratedTetMesh(
                 generatedTetMesh);
+        }
+    }
+
+    private void SanitizeMeshParameters()
+    {
+        radius =
+            Mathf.Max(
+                0.1f,
+                radius);
+
+        thickness =
+            Mathf.Max(
+                0.01f,
+                thickness);
+
+        innerBandRadius =
+            Mathf.Clamp(
+                innerBandRadius,
+                radius *
+                0.05f,
+                radius *
+                0.75f);
+
+        middleBandRadius =
+            Mathf.Clamp(
+                middleBandRadius,
+                innerBandRadius +
+                radius *
+                0.05f,
+                radius *
+                0.95f);
+
+        innerRadialSegments =
+            Mathf.Max(
+                1,
+                innerRadialSegments);
+
+        middleRadialSegments =
+            Mathf.Max(
+                1,
+                middleRadialSegments);
+
+        outerRadialSegments =
+            Mathf.Max(
+                1,
+                outerRadialSegments);
+
+        innerAngularSegments =
+            Mathf.Max(
+                6,
+                innerAngularSegments);
+
+        middleAngularSegments =
+            Mathf.Max(
+                innerAngularSegments,
+                middleAngularSegments);
+
+        outerAngularSegments =
+            Mathf.Max(
+                middleAngularSegments,
+                outerAngularSegments);
+
+        if (middleAngularSegments >
+            innerAngularSegments *
+            3)
+        {
+            Debug.LogWarning(
+                "Middle angular resolution is much larger than the inner angular resolution. " +
+                "This can create skinny transition triangles.",
+                this);
+        }
+
+        if (outerAngularSegments >
+            middleAngularSegments *
+            3)
+        {
+            Debug.LogWarning(
+                "Outer angular resolution is much larger than the middle angular resolution. " +
+                "This can create skinny transition triangles.",
+                this);
+        }
+    }
+
+    private static void AddBandRings(
+        List<RadialRing> rings,
+        List<Vector3> rawPositions,
+        Vector3 origin,
+        float halfThickness,
+        float startRadius,
+        float endRadius,
+        int radialSegmentCount,
+        int angularSegmentCount,
+        Func<Vector3, int> createLocalNode)
+    {
+        for (int radialSegment = 1;
+             radialSegment <=
+             radialSegmentCount;
+             ++radialSegment)
+        {
+            float alpha =
+                radialSegment /
+                (float)radialSegmentCount;
+
+            float ringRadius =
+                Mathf.Lerp(
+                    startRadius,
+                    endRadius,
+                    alpha);
+
+            RadialRing ring =
+                new RadialRing(
+                    ringRadius,
+                    angularSegmentCount);
+
+            for (int angularSegment = 0;
+                 angularSegment <
+                 angularSegmentCount;
+                 ++angularSegment)
+            {
+                float angle =
+                    2.0f *
+                    Mathf.PI *
+                    angularSegment /
+                    angularSegmentCount;
+
+                float x =
+                    Mathf.Cos(
+                        angle) *
+                    ringRadius;
+
+                float z =
+                    Mathf.Sin(
+                        angle) *
+                    ringRadius;
+
+                ring.bottomNodes[angularSegment] =
+                    createLocalNode(
+                        origin +
+                        new Vector3(
+                            x,
+                            -halfThickness,
+                            z));
+
+                createLocalNode(
+                    origin +
+                    new Vector3(
+                        x,
+                        halfThickness,
+                        z));
+            }
+
+            rings.Add(
+                ring);
+        }
+    }
+
+    private static void AddCenterFanTriangles(
+        List<(int a, int b, int c)> triangles,
+        int centerNode,
+        int[] firstRingNodes)
+    {
+        int angularSegmentCount =
+            firstRingNodes.Length;
+
+        for (int segment = 0;
+             segment <
+             angularSegmentCount;
+             ++segment)
+        {
+            int next =
+                (segment +
+                 1) %
+                angularSegmentCount;
+
+            triangles.Add(
+                (
+                    centerNode,
+                    firstRingNodes[segment],
+                    firstRingNodes[next]
+                ));
+        }
+    }
+
+    private static void StitchRadialRings(
+        List<(int a, int b, int c)> triangles,
+        int[] innerRingNodes,
+        int[] outerRingNodes)
+    {
+        int innerCount =
+            innerRingNodes.Length;
+
+        int outerCount =
+            outerRingNodes.Length;
+
+        if (innerCount <=
+                0 ||
+            outerCount <=
+                0)
+        {
+            return;
+        }
+
+        int innerIndex =
+            0;
+
+        int outerIndex =
+            0;
+
+        const float progressTolerance =
+            1.0e-6f;
+
+        while (innerIndex <
+                   innerCount ||
+               outerIndex <
+                   outerCount)
+        {
+            int currentInnerNode =
+                innerRingNodes[
+                    innerIndex %
+                    innerCount];
+
+            int currentOuterNode =
+                outerRingNodes[
+                    outerIndex %
+                    outerCount];
+
+            float nextInnerProgress =
+                innerIndex <
+                innerCount
+                    ? (innerIndex +
+                       1) /
+                      (float)innerCount
+                    : float.PositiveInfinity;
+
+            float nextOuterProgress =
+                outerIndex <
+                outerCount
+                    ? (outerIndex +
+                       1) /
+                      (float)outerCount
+                    : float.PositiveInfinity;
+
+            if (Mathf.Abs(
+                    nextInnerProgress -
+                    nextOuterProgress) <=
+                progressTolerance)
+            {
+                int nextInnerNode =
+                    innerRingNodes[
+                        (innerIndex +
+                         1) %
+                        innerCount];
+
+                int nextOuterNode =
+                    outerRingNodes[
+                        (outerIndex +
+                         1) %
+                        outerCount];
+
+                triangles.Add(
+                    (
+                        currentInnerNode,
+                        currentOuterNode,
+                        nextOuterNode
+                    ));
+
+                triangles.Add(
+                    (
+                        currentInnerNode,
+                        nextOuterNode,
+                        nextInnerNode
+                    ));
+
+                ++innerIndex;
+
+                ++outerIndex;
+            }
+            else if (nextInnerProgress <
+                     nextOuterProgress)
+            {
+                int nextInnerNode =
+                    innerRingNodes[
+                        (innerIndex +
+                         1) %
+                        innerCount];
+
+                triangles.Add(
+                    (
+                        currentInnerNode,
+                        currentOuterNode,
+                        nextInnerNode
+                    ));
+
+                ++innerIndex;
+            }
+            else
+            {
+                int nextOuterNode =
+                    outerRingNodes[
+                        (outerIndex +
+                         1) %
+                        outerCount];
+
+                triangles.Add(
+                    (
+                        currentInnerNode,
+                        currentOuterNode,
+                        nextOuterNode
+                    ));
+
+                ++outerIndex;
+            }
         }
     }
 
@@ -591,9 +977,13 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
             PhysiKNative.PHYSIK_GetGeneratedTetMeshTetIndexCount(
                 generatedTetMesh);
 
-        if (vertexCount <= 0 ||
-            tetIndexCount <= 0 ||
-            tetIndexCount % 4 != 0)
+        if (vertexCount <=
+                0 ||
+            tetIndexCount <=
+                0 ||
+            tetIndexCount %
+                4 !=
+                0)
         {
             return false;
         }
@@ -605,7 +995,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
             new int[tetIndexCount];
 
         for (int vertexIndex = 0;
-             vertexIndex < vertexCount;
+             vertexIndex <
+             vertexCount;
              ++vertexIndex)
         {
             int ok =
@@ -616,7 +1007,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
                     out float y,
                     out float z);
 
-            if (ok == 0)
+            if (ok ==
+                0)
             {
                 return false;
             }
@@ -629,7 +1021,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
         }
 
         for (int index = 0;
-             index < tetIndexCount;
+             index <
+             tetIndexCount;
              ++index)
         {
             int ok =
@@ -638,7 +1031,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
                     index,
                     out int nodeIndex);
 
-            if (ok == 0)
+            if (ok ==
+                0)
             {
                 return false;
             }
@@ -701,22 +1095,34 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
         ref int c,
         ref int ct)
     {
-        if (a > b)
+        if (a >
+            b)
         {
-            (a, b) = (b, a);
-            (at, bt) = (bt, at);
+            (a, b) =
+                (b, a);
+
+            (at, bt) =
+                (bt, at);
         }
 
-        if (b > c)
+        if (b >
+            c)
         {
-            (b, c) = (c, b);
-            (bt, ct) = (ct, bt);
+            (b, c) =
+                (c, b);
+
+            (bt, ct) =
+                (ct, bt);
         }
 
-        if (a > b)
+        if (a >
+            b)
         {
-            (a, b) = (b, a);
-            (at, bt) = (bt, at);
+            (a, b) =
+                (b, a);
+
+            (at, bt) =
+                (bt, at);
         }
     }
 
@@ -736,23 +1142,33 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
                     positions[n2] -
                     positions[n0]),
                 positions[n3] -
-                    positions[n0]);
+                positions[n0]);
 
-        if (Mathf.Abs(signedVolume6) < 1.0e-10f)
+        if (Mathf.Abs(
+                signedVolume6) <
+            1.0e-10f)
         {
             return;
         }
 
-        if (signedVolume6 < 0.0f)
+        if (signedVolume6 <
+            0.0f)
         {
             (n1, n2) =
                 (n2, n1);
         }
 
-        tets.Add(n0);
-        tets.Add(n1);
-        tets.Add(n2);
-        tets.Add(n3);
+        tets.Add(
+            n0);
+
+        tets.Add(
+            n1);
+
+        tets.Add(
+            n2);
+
+        tets.Add(
+            n3);
     }
 
     private bool CreateNativeSurfaceVisualComponents()
@@ -764,7 +1180,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
 
         if (PhysiKNative.PHYSIK_IsComponentHandleValid(
                 world,
-                surfaceExtractionHandle) == 0)
+                surfaceExtractionHandle) ==
+            0)
         {
             Debug.LogError(
                 "Failed to create native SurfaceExtractionComponent.",
@@ -780,7 +1197,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
 
         if (PhysiKNative.PHYSIK_IsComponentHandleValid(
                 world,
-                surfaceVisualHandle) == 0)
+                surfaceVisualHandle) ==
+            0)
         {
             Debug.LogError(
                 "Failed to create native SurfaceVisualComponent.",
@@ -823,7 +1241,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
         surfaceMeshFilter.sharedMesh =
             surfaceMesh;
 
-        if (surfaceMaterial != null)
+        if (surfaceMaterial !=
+            null)
         {
             surfaceMeshRenderer.sharedMaterial =
                 surfaceMaterial;
@@ -832,8 +1251,10 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
 
     private void UpdateSurfaceVisualFromNative()
     {
-        if (surfaceMesh == null ||
-            surfaceVisualHandle.IsValid == false)
+        if (surfaceMesh ==
+                null ||
+            surfaceVisualHandle.IsValid ==
+                false)
         {
             return;
         }
@@ -853,43 +1274,59 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
                 world,
                 surfaceVisualHandle);
 
-        if (vertexCount <= 0 ||
-            triangleIndexCount <= 0 ||
-            triangleIndexCount % 3 != 0)
+        if (vertexCount <=
+                0 ||
+            triangleIndexCount <=
+                0 ||
+            triangleIndexCount %
+                3 !=
+                0)
         {
             surfaceMesh.Clear();
+
             return;
         }
 
         bool topologyChanged =
-            surfaceVertices == null ||
-            surfaceVertices.Length != vertexCount ||
-            surfaceTriangleIndices == null ||
-            surfaceTriangleIndices.Length != triangleIndexCount;
+            surfaceVertices ==
+                null ||
+            surfaceVertices.Length !=
+                vertexCount ||
+            surfaceTriangleIndices ==
+                null ||
+            surfaceTriangleIndices.Length !=
+                triangleIndexCount;
 
-        if (surfaceVertices == null ||
-            surfaceVertices.Length != vertexCount)
+        if (surfaceVertices ==
+                null ||
+            surfaceVertices.Length !=
+                vertexCount)
         {
             surfaceVertices =
                 new Vector3[vertexCount];
         }
 
-        if (surfaceNormals == null ||
-            surfaceNormals.Length != vertexCount)
+        if (surfaceNormals ==
+                null ||
+            surfaceNormals.Length !=
+                vertexCount)
         {
             surfaceNormals =
                 new Vector3[vertexCount];
         }
 
-        if (surfaceTriangleIndices == null ||
-            surfaceTriangleIndices.Length != triangleIndexCount)
+        if (surfaceTriangleIndices ==
+                null ||
+            surfaceTriangleIndices.Length !=
+                triangleIndexCount)
         {
             surfaceTriangleIndices =
                 new int[triangleIndexCount];
         }
 
         for (int vertexIndex = 0;
-             vertexIndex < vertexCount;
+             vertexIndex <
+             vertexCount;
              ++vertexIndex)
         {
             int ok =
@@ -901,7 +1338,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
                     out float y,
                     out float z);
 
-            if (ok == 0)
+            if (ok ==
+                0)
             {
                 return;
             }
@@ -914,7 +1352,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
         }
 
         for (int index = 0;
-             index < triangleIndexCount;
+             index <
+             triangleIndexCount;
              ++index)
         {
             int ok =
@@ -924,7 +1363,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
                     index,
                     out int triangleIndex);
 
-            if (ok == 0)
+            if (ok ==
+                0)
             {
                 return;
             }
@@ -940,7 +1380,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
         if (nativeNormalsAvailable)
         {
             for (int normalIndex = 0;
-                 normalIndex < normalCount;
+                 normalIndex <
+                 normalCount;
                  ++normalIndex)
             {
                 int ok =
@@ -952,7 +1393,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
                         out float y,
                         out float z);
 
-                if (ok == 0)
+                if (ok ==
+                    0)
                 {
                     nativeNormalsAvailable =
                         false;
@@ -995,16 +1437,22 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
         }
     }
 
-    public bool DeactivateTet(int tetIndex)
+    public bool DeactivateTet(
+        int tetIndex)
     {
-        if (world == IntPtr.Zero ||
-            tetLocalNodeIndices == null)
+        if (world ==
+                IntPtr.Zero ||
+            tetLocalNodeIndices ==
+                null)
         {
             return false;
         }
 
-        if (tetIndex < 0 ||
-            tetIndex >= tetLocalNodeIndices.Length / 4)
+        if (tetIndex <
+                0 ||
+            tetIndex >=
+                tetLocalNodeIndices.Length /
+                4)
         {
             return false;
         }
@@ -1012,7 +1460,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
         if (PhysiKNative.PHYSIK_IsTetActive(
                 world,
                 tetMesh,
-                tetIndex) == 0)
+                tetIndex) ==
+            0)
         {
             return false;
         }
@@ -1022,21 +1471,25 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
             tetMesh,
             tetIndex);
 
-        topologyDirty = true;
+        topologyDirty =
+            true;
 
         return true;
     }
 
     private void UpdateNodeWorldPositions()
     {
-        if (nodes == null ||
-            nodeWorldPositions == null)
+        if (nodes ==
+                null ||
+            nodeWorldPositions ==
+                null)
         {
             return;
         }
 
         for (int localNode = 0;
-             localNode < nodes.Length;
+             localNode <
+             nodes.Length;
              ++localNode)
         {
             PhysiKNative.PHYSIK_GetNodePosition(
@@ -1091,7 +1544,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
         wireframeMeshRenderer.receiveShadows =
             false;
 
-        if (wireframeMaterial != null)
+        if (wireframeMaterial !=
+            null)
         {
             wireframeMeshRenderer.sharedMaterial =
                 wireframeMaterial;
@@ -1100,8 +1554,10 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
 
     private void RebuildWireframeTopology()
     {
-        if (wireframeMesh == null ||
-            tetLocalNodeIndices == null)
+        if (wireframeMesh ==
+                null ||
+            tetLocalNodeIndices ==
+                null)
         {
             return;
         }
@@ -1114,13 +1570,15 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
             4;
 
         for (int tet = 0;
-             tet < tetCount;
+             tet <
+             tetCount;
              ++tet)
         {
             if (PhysiKNative.PHYSIK_IsTetActive(
                     world,
                     tetMesh,
-                    tet) == 0)
+                    tet) ==
+                0)
             {
                 continue;
             }
@@ -1130,23 +1588,54 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
                 4;
 
             int a =
-                tetLocalNodeIndices[baseIndex + 0];
+                tetLocalNodeIndices[
+                    baseIndex +
+                    0];
 
             int b =
-                tetLocalNodeIndices[baseIndex + 1];
+                tetLocalNodeIndices[
+                    baseIndex +
+                    1];
 
             int c =
-                tetLocalNodeIndices[baseIndex + 2];
+                tetLocalNodeIndices[
+                    baseIndex +
+                    2];
 
             int d =
-                tetLocalNodeIndices[baseIndex + 3];
+                tetLocalNodeIndices[
+                    baseIndex +
+                    3];
 
-            AddWireEdge(uniqueEdges, a, b);
-            AddWireEdge(uniqueEdges, a, c);
-            AddWireEdge(uniqueEdges, a, d);
-            AddWireEdge(uniqueEdges, b, c);
-            AddWireEdge(uniqueEdges, b, d);
-            AddWireEdge(uniqueEdges, c, d);
+            AddWireEdge(
+                uniqueEdges,
+                a,
+                b);
+
+            AddWireEdge(
+                uniqueEdges,
+                a,
+                c);
+
+            AddWireEdge(
+                uniqueEdges,
+                a,
+                d);
+
+            AddWireEdge(
+                uniqueEdges,
+                b,
+                c);
+
+            AddWireEdge(
+                uniqueEdges,
+                b,
+                d);
+
+            AddWireEdge(
+                uniqueEdges,
+                c,
+                d);
         }
 
         List<int> lines =
@@ -1154,10 +1643,14 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
                 uniqueEdges.Count *
                 2);
 
-        foreach ((int a, int b) in uniqueEdges)
+        foreach ((int a, int b)
+                 in uniqueEdges)
         {
-            lines.Add(a);
-            lines.Add(b);
+            lines.Add(
+                a);
+
+            lines.Add(
+                b);
         }
 
         wireframeLineIndices =
@@ -1168,7 +1661,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
         wireframeMesh.vertices =
             nodeWorldPositions;
 
-        if (wireframeLineIndices.Length > 0)
+        if (wireframeLineIndices.Length >
+            0)
         {
             wireframeMesh.SetIndices(
                 wireframeLineIndices,
@@ -1181,8 +1675,10 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
 
     private void UpdateWireframeVertices()
     {
-        if (wireframeMesh == null ||
-            nodeWorldPositions == null)
+        if (wireframeMesh ==
+                null ||
+            nodeWorldPositions ==
+                null)
         {
             return;
         }
@@ -1190,7 +1686,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
         wireframeMesh.vertices =
             nodeWorldPositions;
 
-        if (wireframeLineIndices != null)
+        if (wireframeLineIndices !=
+            null)
         {
             wireframeMesh.SetIndices(
                 wireframeLineIndices,
@@ -1206,7 +1703,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
         int a,
         int b)
     {
-        if (a > b)
+        if (a >
+            b)
         {
             (a, b) =
                 (b, a);
@@ -1218,7 +1716,8 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
 
     private void OnDestroy()
     {
-        if (physikWorld != null)
+        if (physikWorld !=
+            null)
         {
             physikWorld.UnregisterParticipant(
                 this);
@@ -1230,18 +1729,18 @@ public class Physik_MechanicalTissue : MonoBehaviour, IPhysikWorldParticipant
         world =
             IntPtr.Zero;
 
-        if (surfaceObject != null)
+        if (surfaceObject !=
+            null)
         {
             Destroy(
                 surfaceObject);
         }
 
-        if (wireframeObject != null)
+        if (wireframeObject !=
+            null)
         {
             Destroy(
                 wireframeObject);
         }
-
     }
 }
-
