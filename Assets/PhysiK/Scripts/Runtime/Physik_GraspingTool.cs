@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using PhysiK.Unity;
@@ -17,8 +16,6 @@ public sealed class Physik_GraspingTool : MonoBehaviour, IPhysikWorldParticipant
     [SerializeField] private Physik_MechanicalTissue tissue;
 
     [Header("Grasping")]
-    [SerializeField] private int maxAttachments = 4;
-    [SerializeField] private float graspRadiusMultiplier = 1.5f;
     [SerializeField] private float graspStiffness = 20000.0f;
     [SerializeField] private float graspDamping = 0.0f;
 
@@ -26,11 +23,12 @@ public sealed class Physik_GraspingTool : MonoBehaviour, IPhysikWorldParticipant
     [SerializeField] private float collisionConnectionStiffness = 10000.0f;
     [SerializeField] private float collisionConnectionDamping = 0.0f;
 
-    private readonly List<GraspAttachment> attachments =
-        new List<GraspAttachment>();
-
     private PhysiKComponentHandle sphereComponent;
     private Physik_World physikWorld;
+
+    private GraspAttachment attachment;
+    private bool hasAttachment;
+
     private bool initialized;
     private bool possessed;
     private bool grasping;
@@ -41,7 +39,7 @@ public sealed class Physik_GraspingTool : MonoBehaviour, IPhysikWorldParticipant
 
     public bool IsGrasping => grasping;
 
-    public int AttachmentCount => attachments.Count;
+    public int AttachmentCount => hasAttachment ? 1 : 0;
 
     private float RadiusFromTransform
     {
@@ -89,16 +87,18 @@ public sealed class Physik_GraspingTool : MonoBehaviour, IPhysikWorldParticipant
             Keyboard.current != null &&
             Keyboard.current.gKey.wasPressedThisFrame;
 
-        if (toggleGrasp)
+        if (!toggleGrasp)
         {
-            if (grasping)
-            {
-                Release();
-            }
-            else
-            {
-                TryBeginGrasp();
-            }
+            return;
+        }
+
+        if (grasping)
+        {
+            Release();
+        }
+        else
+        {
+            TryBeginGrasp();
         }
     }
 
@@ -112,13 +112,14 @@ public sealed class Physik_GraspingTool : MonoBehaviour, IPhysikWorldParticipant
     {
         if (!initialized ||
             !grasping ||
+            !hasAttachment ||
             tissue == null ||
             tissue.WorldHandle == IntPtr.Zero)
         {
             return;
         }
 
-        PushActiveGraspConnections();
+        PushActiveGraspConnection();
     }
 
     public void OnPhysikAfterSimulationFrame()
@@ -127,8 +128,7 @@ public sealed class Physik_GraspingTool : MonoBehaviour, IPhysikWorldParticipant
 
     public void OnPhysikWorldDestroyed()
     {
-        attachments.Clear();
-        grasping = false;
+        Release();
         initialized = false;
         physikWorld = null;
     }
@@ -229,8 +229,12 @@ public sealed class Physik_GraspingTool : MonoBehaviour, IPhysikWorldParticipant
             position.z);
     }
 
-    private void TryBeginGrasp()
+    private bool TryFindClosestNodeInsideTool(
+    out int closestLocalNodeIndex)
     {
+        closestLocalNodeIndex =
+            -1;
+
         int[] globalNodeIndices =
             tissue.GlobalNodeIndices;
 
@@ -245,24 +249,18 @@ public sealed class Physik_GraspingTool : MonoBehaviour, IPhysikWorldParticipant
                 "Physik_GraspingTool could not read the tissue nodes.",
                 this);
 
-            return;
+            return false;
         }
-
-        float graspRadius =
-            RadiusFromTransform *
-            Mathf.Max(
-                0.0f,
-                graspRadiusMultiplier);
-
-        float graspRadiusSquared =
-            graspRadius *
-            graspRadius;
 
         Vector3 toolPosition =
             transform.position;
 
-        List<(int localNodeIndex, float distanceSquared)> candidates =
-            new List<(int localNodeIndex, float distanceSquared)>();
+        float graspRadiusSquared =
+            RadiusFromTransform *
+            RadiusFromTransform;
+
+        float closestDistanceSquared =
+            float.PositiveInfinity;
 
         for (int localNodeIndex = 0;
              localNodeIndex < nodeWorldPositions.Length;
@@ -273,92 +271,94 @@ public sealed class Physik_GraspingTool : MonoBehaviour, IPhysikWorldParticipant
                  toolPosition)
                 .sqrMagnitude;
 
-            if (distanceSquared <= graspRadiusSquared)
+            if (distanceSquared > graspRadiusSquared ||
+                distanceSquared >= closestDistanceSquared)
             {
-                candidates.Add(
-                    (localNodeIndex, distanceSquared));
+                continue;
             }
+
+            closestDistanceSquared =
+                distanceSquared;
+
+            closestLocalNodeIndex =
+                localNodeIndex;
         }
 
-        candidates.Sort(
-            (a, b) =>
-                a.distanceSquared.CompareTo(
-                    b.distanceSquared));
-
-        attachments.Clear();
-
-        int attachmentCount =
-            Mathf.Min(
-                Mathf.Max(
-                    1,
-                    maxAttachments),
-                candidates.Count);
-
-        for (int i = 0;
-             i < attachmentCount;
-             ++i)
-        {
-            int localNodeIndex =
-                candidates[i].localNodeIndex;
-
-            attachments.Add(
-                new GraspAttachment
-                {
-                    globalNodeIndex =
-                        globalNodeIndices[localNodeIndex],
-
-                    localOffsetFromTool =
-                        transform.InverseTransformPoint(
-                            nodeWorldPositions[localNodeIndex])
-                });
-        }
-
-        grasping =
-            attachments.Count > 0;
-
-        if (!grasping)
-        {
-            Debug.Log(
-                "Physik_GraspingTool found no tissue node inside its grasp radius.",
-                this);
-        }
+        return closestLocalNodeIndex >= 0;
     }
 
-    private void PushActiveGraspConnections()
+    private void CreateAttachment(
+    int localNodeIndex)
     {
-        for (int i = 0;
-             i < attachments.Count;
-             ++i)
+        int[] globalNodeIndices =
+            tissue.GlobalNodeIndices;
+
+        Vector3[] nodeWorldPositions =
+            tissue.NodeWorldPositions;
+
+        attachment =
+            new GraspAttachment
+            {
+                globalNodeIndex =
+                    globalNodeIndices[localNodeIndex],
+
+                localOffsetFromTool =
+                    transform.InverseTransformPoint(
+                        nodeWorldPositions[localNodeIndex])
+            };
+
+        hasAttachment =
+            true;
+    }
+    private void TryBeginGrasp()
+    {
+        if (!TryFindClosestNodeInsideTool(
+                out int closestLocalNodeIndex))
         {
-            GraspAttachment attachment =
-                attachments[i];
+            Debug.Log(
+                "Physik_GraspingTool found no tissue node inside the tool sphere.",
+                this);
 
-            Vector3 target =
-                transform.TransformPoint(
-                    attachment.localOffsetFromTool);
-
-            PhysiKNative.PHYSIK_AddPointConnection(
-                tissue.WorldHandle,
-                attachment.globalNodeIndex,
-                attachment.globalNodeIndex,
-                attachment.globalNodeIndex,
-                attachment.globalNodeIndex,
-                1.0f,
-                0.0f,
-                0.0f,
-                0.0f,
-                target.x,
-                target.y,
-                target.z,
-                graspStiffness,
-                graspDamping);
+            return;
         }
+
+        CreateAttachment(
+            closestLocalNodeIndex);
+
+        grasping =
+            true;
+    }
+
+    private void PushActiveGraspConnection()
+    {
+        Vector3 target =
+            transform.TransformPoint(
+                attachment.localOffsetFromTool);
+
+        PhysiKNative.PHYSIK_AddPointConnection(
+            tissue.WorldHandle,
+            attachment.globalNodeIndex,
+            attachment.globalNodeIndex,
+            attachment.globalNodeIndex,
+            attachment.globalNodeIndex,
+            1.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            target.x,
+            target.y,
+            target.z,
+            graspStiffness,
+            graspDamping);
     }
 
     private void Release()
     {
-        attachments.Clear();
-        grasping = false;
+        hasAttachment =
+            false;
+
+        grasping =
+            false;
     }
 
     private void OnDestroy()
@@ -378,8 +378,9 @@ public sealed class Physik_GraspingTool : MonoBehaviour, IPhysikWorldParticipant
                 sphereComponent);
         }
 
-        attachments.Clear();
-        grasping = false;
-        initialized = false;
+        Release();
+
+        initialized =
+            false;
     }
 }

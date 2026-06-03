@@ -283,7 +283,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: 0.37554255, y: -0, z: -0, w: 0.92680514}
-  m_LocalPosition: {x: 4.4, y: 20.1, z: -23.6}
+  m_LocalPosition: {x: 1.63, y: 31.6, z: -38.6}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -366,7 +366,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Physik_CutTool
   tissue: {fileID: 188124102}
-  maxCutsPerFrame: 8
   connectionStiffness: 10000
   connectionDamping: 0
 --- !u!135 &356587376
@@ -456,7 +455,7 @@ Transform:
   m_GameObject: {fileID: 356587374}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -8.63728, y: 3.31729, z: 0.30403}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 3, y: 3, z: 3}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -734,9 +733,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Physik_GraspingTool
   tissue: {fileID: 188124102}
-  maxAttachments: 4
-  graspRadiusMultiplier: 1.5
-  graspStiffness: 30000
+  graspStiffness: 100000
   graspDamping: 0
   collisionConnectionStiffness: 10000
   collisionConnectionDamping: 0
@@ -827,7 +824,7 @@ Transform:
   m_GameObject: {fileID: 765406665}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -10.0368, y: 3.8548, z: 0.35329}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 3, y: 3, z: 3}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1156,6 +1153,7 @@ MonoBehaviour:
   graspingTool: {fileID: 765406666}
   cutTool: {fileID: 356587375}
   initialMode: 0
+  mouseProjectionPlaneY: 0
   verticalSpeed: 6
 --- !u!1 &1831459177
 GameObject:
@@ -1302,7 +1300,7 @@ MonoBehaviour:
   cutWhileMouseHeld: 1
   cutContinuously: 1
   maxCutsPerFrame: 8
-  connectionStiffness: 10000
+  connectionStiffness: 5000
   connectionDamping: 0
   visualRenderer: {fileID: 0}
 --- !u!135 &1843447744
