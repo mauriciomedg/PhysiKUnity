@@ -14,5 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PhysiK.Unity.PhysikMaterialAsset
   density: 0.2
   youngModulus: 50000
-  poissonRatio: 0.3
-  damping: 0
+  poissonRatio: 0.35
+  damping: 0.05

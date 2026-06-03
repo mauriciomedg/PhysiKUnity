@@ -152,10 +152,10 @@ MonoBehaviour:
   physikWorld: {fileID: 1103873814}
   radius: 20
   thickness: 0.5
-  innerBandRadius: 5
+  innerBandRadius: 6
   innerRadialSegments: 3
   innerAngularSegments: 12
-  middleBandRadius: 11
+  middleBandRadius: 12
   middleRadialSegments: 4
   middleAngularSegments: 24
   outerRadialSegments: 10
@@ -194,10 +194,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Physik_BoundaryConnections
   mechanicalTissue: {fileID: 188124102}
-  boundaryStiffness: 1000000
+  boundaryStiffness: 10000
   boundaryDamping: 0
-  radialBoundaryOffset: 1
-  drawBoundaryMarkers: 0
+  radialBoundaryOffset: 0
+  drawBoundaryMarkers: 1
   boundaryMarkerMaterial: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}
   boundaryMarkerRadius: 0.035
   drawPointConnectionLines: 1
@@ -289,7 +289,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: 0.37554255, y: -0, z: -0, w: 0.92680514}
-  m_LocalPosition: {x: 1.63, y: 31.6, z: -38.6}
+  m_LocalPosition: {x: 0.4, y: 20.4, z: -24.7}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -462,7 +462,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 3, y: 3, z: 3}
+  m_LocalScale: {x: 2.5, y: 2.5, z: 2.5}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -559,7 +559,7 @@ Transform:
   m_GameObject: {fileID: 410087039}
   serializedVersion: 2
   m_LocalRotation: {x: 0.29071102, y: -0.24681883, z: 0.07789577, w: 0.9211405}
-  m_LocalPosition: {x: 2.5, y: -2.2, z: -4.5}
+  m_LocalPosition: {x: 2.5, y: 41.5, z: -4.5}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -739,7 +739,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Physik_GraspingTool
   tissue: {fileID: 188124102}
-  graspStiffness: 500000
+  maxGraspContactCount: 5
+  graspStiffness: 10000000
   graspDamping: 0
   collisionConnectionStiffness: 50000
   collisionConnectionDamping: 0
@@ -831,7 +832,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 3, y: 3, z: 3}
+  m_LocalScale: {x: 2.5, y: 2.5, z: 2.5}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
