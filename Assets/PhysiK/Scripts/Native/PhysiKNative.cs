@@ -457,4 +457,27 @@ public static class PhysiKNative
     public static extern int PHYSIK_DidLastConjugateGradientSolveConverge(
         IntPtr world);
 
+    [UnmanagedFunctionPointer(
+            CallingConvention.Cdecl)]
+    public delegate void ExternalLogicCallback(
+            IntPtr world,
+            IntPtr userData);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern PhysiKComponentHandle
+        PHYSIK_CreateScriptComponent(IntPtr world);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void
+        PHYSIK_SetScriptComponentCallback(IntPtr world,
+            PhysiKComponentHandle scriptComponent,
+            ExternalLogicCallback callback,
+            IntPtr userData);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void
+        PHYSIK_ClearScriptComponentCallback(
+            IntPtr world,
+            PhysiKComponentHandle scriptComponent);
+
 }

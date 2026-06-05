@@ -4,51 +4,85 @@ using UnityEngine;
 using PhysiK.Unity;
 
 [RequireComponent(typeof(Physik_MechanicalTissue))]
-public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
+public class Physik_BoundaryConnections :
+    Physik_ScriptComponent
 {
     [Header("Mechanical Tissue")]
-    [SerializeField] private Physik_MechanicalTissue mechanicalTissue;
+    [SerializeField]
+    private Physik_MechanicalTissue mechanicalTissue;
 
     [Header("Boundary Point Connections")]
-    [SerializeField] private float boundaryStiffness = 20000.0f;
-    [SerializeField] private float boundaryDamping = 0.0f;
-    [SerializeField] private float radialBoundaryOffset = 0.15f;
+    [SerializeField]
+    private float boundaryStiffness =
+        20000.0f;
+
+    [SerializeField]
+    private float boundaryDamping =
+        0.0f;
+
+    [SerializeField]
+    private float radialBoundaryOffset =
+        0.15f;
 
     [Header("Boundary Marker Debug Draw")]
-    [SerializeField] private bool drawBoundaryMarkers = true;
-    [SerializeField] private Material boundaryMarkerMaterial;
-    [SerializeField] private float boundaryMarkerRadius = 0.035f;
+    [SerializeField]
+    private bool drawBoundaryMarkers =
+        true;
+
+    [SerializeField]
+    private Material boundaryMarkerMaterial;
+
+    [SerializeField]
+    private float boundaryMarkerRadius =
+        0.035f;
 
     [Header("Point Connection Line Debug Draw")]
-    [SerializeField] private bool drawPointConnectionLines = true;
-    [SerializeField] private Material pointConnectionLineMaterial;
+    [SerializeField]
+    private bool drawPointConnectionLines =
+        true;
+
+    [SerializeField]
+    private Material pointConnectionLineMaterial;
 
     private bool initialized;
-    private IntPtr world = IntPtr.Zero;
-    private Physik_World physikWorld;
+
+    private IntPtr world =
+        IntPtr.Zero;
 
     private int[] boundaryLocalNodeIndices;
+
     private Vector3[] boundaryAnchorPositions;
 
     // Boundary marker debug draw.
     private GameObject boundaryMarkerObject;
+
     private Mesh boundaryMarkerMesh;
+
     private MeshFilter boundaryMarkerMeshFilter;
+
     private MeshRenderer boundaryMarkerMeshRenderer;
+
     private int[] boundaryMarkerTriangles;
 
-    // Point connection line debug draw.
+    // Point-connection line debug draw.
     private GameObject pointConnectionLineObject;
+
     private Mesh pointConnectionLineMesh;
+
     private MeshFilter pointConnectionLineMeshFilter;
+
     private MeshRenderer pointConnectionLineMeshRenderer;
+
     private int[] pointConnectionLineIndices;
+
     private Vector3[] pointConnectionLineVertices;
 
-    public bool IsInitialized => initialized;
+    public bool IsInitialized =>
+        initialized;
 
     public int BoundaryNodeCount =>
-        boundaryLocalNodeIndices != null
+        boundaryLocalNodeIndices !=
+        null
             ? boundaryLocalNodeIndices.Length
             : 0;
 
@@ -62,7 +96,37 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
         if (!initialized)
         {
             TryInitialize();
+
+            return;
         }
+
+        UpdateDebugVisuals();
+    }
+
+    private void TryInitialize()
+    {
+        if (initialized)
+        {
+            return;
+        }
+
+        if (mechanicalTissue ==
+            null)
+        {
+            mechanicalTissue =
+                GetComponent<
+                    Physik_MechanicalTissue>();
+        }
+
+        if (mechanicalTissue ==
+                null ||
+            !mechanicalTissue.IsInitialized)
+        {
+            return;
+        }
+
+        Initialize(
+            mechanicalTissue);
     }
 
     private bool Initialize(
@@ -76,7 +140,8 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
         mechanicalTissue =
             tissue;
 
-        if (mechanicalTissue == null)
+        if (mechanicalTissue ==
+            null)
         {
             Debug.LogError(
                 "Physik_MechanicalTissue is not assigned.",
@@ -90,22 +155,11 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
             return false;
         }
 
-        physikWorld =
-            mechanicalTissue.WorldOwner;
-
-        if (physikWorld == null)
-        {
-            Debug.LogError(
-                "The mechanical tissue has no Physik_World assigned.",
-                this);
-
-            return false;
-        }
-
         world =
             mechanicalTissue.WorldHandle;
 
-        if (world == IntPtr.Zero)
+        if (world ==
+            IntPtr.Zero)
         {
             Debug.LogError(
                 "The mechanical tissue has no valid native world.",
@@ -117,8 +171,10 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
         Vector3[] positions =
             mechanicalTissue.NodeWorldPositions;
 
-        if (positions == null ||
-            positions.Length == 0)
+        if (positions ==
+                null ||
+            positions.Length ==
+                0)
         {
             Debug.LogError(
                 "Mechanical tissue has no generated node positions.",
@@ -132,25 +188,35 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
             mechanicalTissue.TissueCenter,
             mechanicalTissue.TissueRadius);
 
+        if (!TryInitializeNativeScriptComponent())
+        {
+            Debug.LogError(
+                "Failed to initialize the native ScriptComponent for Physik_BoundaryConnections.",
+                this);
+
+            return false;
+        }
+
         if (drawBoundaryMarkers)
         {
             CreateBoundaryMarkerVisual();
+
             RebuildBoundaryMarkerTopology();
+
             UpdateBoundaryMarkerVertices();
         }
 
         if (drawPointConnectionLines)
         {
             CreatePointConnectionLineVisual();
+
             RebuildPointConnectionLineTopology();
+
             UpdatePointConnectionLineVertices();
         }
 
         initialized =
             true;
-
-        physikWorld.RegisterParticipant(
-            this);
 
         Debug.Log(
             $"Boundary connections initialized. " +
@@ -163,66 +229,36 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
         return true;
     }
 
-    private void TryInitialize()
+    protected override IntPtr
+        GetScriptWorldHandle()
     {
-        if (initialized)
-        {
-            return;
-        }
-
-        if (mechanicalTissue == null)
-        {
-            mechanicalTissue =
-                GetComponent<Physik_MechanicalTissue>();
-        }
-
-        if (mechanicalTissue == null ||
-            !mechanicalTissue.IsInitialized)
-        {
-            return;
-        }
-
-        Initialize(
-            mechanicalTissue);
+        return world;
     }
 
-    public void OnPhysikBeforeSimulationStep(float dt)
+    protected override bool
+        CanInitializeScriptComponent()
+    {
+        return world !=
+                IntPtr.Zero &&
+            mechanicalTissue !=
+                null &&
+            boundaryLocalNodeIndices !=
+                null &&
+            boundaryAnchorPositions !=
+                null;
+    }
+
+    protected override void
+        OnPhysikPreUpdate()
     {
         if (!initialized ||
-            world == IntPtr.Zero)
+            world ==
+                IntPtr.Zero)
         {
             return;
         }
 
         AddBoundaryPointConnections();
-    }
-
-    public void OnPhysikAfterSimulationFrame()
-    {
-        if (!initialized ||
-            world == IntPtr.Zero)
-        {
-            return;
-        }
-
-        if (drawBoundaryMarkers)
-        {
-            UpdateBoundaryMarkerVertices();
-        }
-
-        if (drawPointConnectionLines)
-        {
-            UpdatePointConnectionLineVertices();
-        }
-    }
-
-    public void OnPhysikWorldDestroyed()
-    {
-        initialized =
-            false;
-
-        world =
-            IntPtr.Zero;
     }
 
     private void BuildRadialBoundaryNodes(
@@ -240,21 +276,26 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
                 1.0e-4f);
 
         for (int localNode = 0;
-             localNode < positions.Length;
+             localNode <
+                 positions.Length;
              ++localNode)
         {
             Vector3 position =
-                positions[localNode];
+                positions[
+                    localNode];
 
             float radialDistance =
                 new Vector2(
-                    position.x - center.x,
-                    position.z - center.z)
+                    position.x -
+                    center.x,
+                    position.z -
+                    center.z)
                 .magnitude;
 
             if (Mathf.Abs(
                     radialDistance -
-                    radius) <= tolerance)
+                    radius) <=
+                tolerance)
             {
                 boundary.Add(
                     localNode);
@@ -268,25 +309,34 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
             boundaryLocalNodeIndices);
 
         boundaryAnchorPositions =
-            new Vector3[boundaryLocalNodeIndices.Length];
+            new Vector3[
+                boundaryLocalNodeIndices
+                    .Length];
 
         for (int i = 0;
-             i < boundaryLocalNodeIndices.Length;
+             i <
+                 boundaryLocalNodeIndices
+                     .Length;
              ++i)
         {
             int localNode =
-                boundaryLocalNodeIndices[i];
+                boundaryLocalNodeIndices[
+                    i];
 
             Vector3 originalPosition =
-                positions[localNode];
+                positions[
+                    localNode];
 
             Vector3 radial =
                 new Vector3(
-                    originalPosition.x - center.x,
+                    originalPosition.x -
+                    center.x,
                     0.0f,
-                    originalPosition.z - center.z);
+                    originalPosition.z -
+                    center.z);
 
-            if (radial.sqrMagnitude > 1.0e-8f)
+            if (radial.sqrMagnitude >
+                1.0e-8f)
             {
                 radial.Normalize();
             }
@@ -296,7 +346,8 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
                     Vector3.zero;
             }
 
-            boundaryAnchorPositions[i] =
+            boundaryAnchorPositions[
+                i] =
                 originalPosition +
                 radial *
                 radialBoundaryOffset;
@@ -305,49 +356,88 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
 
     private void AddBoundaryPointConnections()
     {
-        if (mechanicalTissue == null ||
-            boundaryLocalNodeIndices == null ||
-            boundaryAnchorPositions == null)
+        if (mechanicalTissue ==
+                null ||
+            boundaryLocalNodeIndices ==
+                null ||
+            boundaryAnchorPositions ==
+                null)
         {
             return;
         }
 
         int[] nodes =
-            mechanicalTissue.GlobalNodeIndices;
+            mechanicalTissue
+                .GlobalNodeIndices;
 
-        if (nodes == null)
+        if (nodes ==
+            null)
         {
             return;
         }
 
         for (int i = 0;
-             i < boundaryLocalNodeIndices.Length;
+             i <
+                 boundaryLocalNodeIndices
+                     .Length;
              ++i)
         {
             int localNodeIndex =
-                boundaryLocalNodeIndices[i];
+                boundaryLocalNodeIndices[
+                    i];
+
+            if (localNodeIndex <
+                    0 ||
+                localNodeIndex >=
+                    nodes.Length)
+            {
+                continue;
+            }
 
             int globalNodeIndex =
-                nodes[localNodeIndex];
+                nodes[
+                    localNodeIndex];
 
             Vector3 target =
-                boundaryAnchorPositions[i];
+                boundaryAnchorPositions[
+                    i];
 
-            PhysiKNative.PHYSIK_AddPointConnection(
-                world,
-                globalNodeIndex,
-                globalNodeIndex,
-                globalNodeIndex,
-                globalNodeIndex,
-                1.0f,
-                0.0f,
-                0.0f,
-                0.0f,
-                target.x,
-                target.y,
-                target.z,
-                boundaryStiffness,
-                boundaryDamping);
+            PhysiKNative
+                .PHYSIK_AddPointConnection(
+                    world,
+                    globalNodeIndex,
+                    globalNodeIndex,
+                    globalNodeIndex,
+                    globalNodeIndex,
+                    1.0f,
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    target.x,
+                    target.y,
+                    target.z,
+                    boundaryStiffness,
+                    boundaryDamping);
+        }
+    }
+
+    private void UpdateDebugVisuals()
+    {
+        if (!initialized ||
+            world ==
+                IntPtr.Zero)
+        {
+            return;
+        }
+
+        if (drawBoundaryMarkers)
+        {
+            UpdateBoundaryMarkerVertices();
+        }
+
+        if (drawPointConnectionLines)
+        {
+            UpdatePointConnectionLineVertices();
         }
     }
 
@@ -357,15 +447,21 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
             new GameObject(
                 "PhysiK_PointConnected_Boundary_Nodes_Debug");
 
-        boundaryMarkerObject.transform.SetPositionAndRotation(
-            Vector3.zero,
-            Quaternion.identity);
+        boundaryMarkerObject
+            .transform
+            .SetPositionAndRotation(
+                Vector3.zero,
+                Quaternion.identity);
 
         boundaryMarkerMeshFilter =
-            boundaryMarkerObject.AddComponent<MeshFilter>();
+            boundaryMarkerObject
+                .AddComponent<
+                    MeshFilter>();
 
         boundaryMarkerMeshRenderer =
-            boundaryMarkerObject.AddComponent<MeshRenderer>();
+            boundaryMarkerObject
+                .AddComponent<
+                    MeshRenderer>();
 
         boundaryMarkerMesh =
             new Mesh
@@ -374,31 +470,40 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
                     "PhysiK_PointConnected_Boundary_Nodes_Debug_Mesh",
 
                 indexFormat =
-                    UnityEngine.Rendering.IndexFormat.UInt32
+                    UnityEngine.Rendering
+                        .IndexFormat
+                        .UInt32
             };
 
-        boundaryMarkerMesh.MarkDynamic();
+        boundaryMarkerMesh
+            .MarkDynamic();
 
-        boundaryMarkerMeshFilter.sharedMesh =
+        boundaryMarkerMeshFilter
+            .sharedMesh =
             boundaryMarkerMesh;
 
-        if (boundaryMarkerMaterial != null)
+        if (boundaryMarkerMaterial !=
+            null)
         {
-            boundaryMarkerMeshRenderer.sharedMaterial =
+            boundaryMarkerMeshRenderer
+                .sharedMaterial =
                 boundaryMarkerMaterial;
         }
     }
 
     private void RebuildBoundaryMarkerTopology()
     {
-        if (boundaryMarkerMesh == null ||
-            boundaryLocalNodeIndices == null)
+        if (boundaryMarkerMesh ==
+                null ||
+            boundaryLocalNodeIndices ==
+                null)
         {
             return;
         }
 
         int markerCount =
-            boundaryLocalNodeIndices.Length;
+            boundaryLocalNodeIndices
+                .Length;
 
         Vector3[] vertices =
             new Vector3[
@@ -412,7 +517,8 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
                 3);
 
         for (int i = 0;
-             i < markerCount;
+             i <
+                 markerCount;
              ++i)
         {
             int baseVertex =
@@ -443,37 +549,77 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
                 baseVertex +
                 5;
 
-            triangles.Add(py);
-            triangles.Add(px);
-            triangles.Add(pz);
+            triangles.Add(
+                py);
 
-            triangles.Add(py);
-            triangles.Add(pz);
-            triangles.Add(nx);
+            triangles.Add(
+                px);
 
-            triangles.Add(py);
-            triangles.Add(nx);
-            triangles.Add(nz);
+            triangles.Add(
+                pz);
 
-            triangles.Add(py);
-            triangles.Add(nz);
-            triangles.Add(px);
+            triangles.Add(
+                py);
 
-            triangles.Add(ny);
-            triangles.Add(pz);
-            triangles.Add(px);
+            triangles.Add(
+                pz);
 
-            triangles.Add(ny);
-            triangles.Add(nx);
-            triangles.Add(pz);
+            triangles.Add(
+                nx);
 
-            triangles.Add(ny);
-            triangles.Add(nz);
-            triangles.Add(nx);
+            triangles.Add(
+                py);
 
-            triangles.Add(ny);
-            triangles.Add(px);
-            triangles.Add(nz);
+            triangles.Add(
+                nx);
+
+            triangles.Add(
+                nz);
+
+            triangles.Add(
+                py);
+
+            triangles.Add(
+                nz);
+
+            triangles.Add(
+                px);
+
+            triangles.Add(
+                ny);
+
+            triangles.Add(
+                pz);
+
+            triangles.Add(
+                px);
+
+            triangles.Add(
+                ny);
+
+            triangles.Add(
+                nx);
+
+            triangles.Add(
+                pz);
+
+            triangles.Add(
+                ny);
+
+            triangles.Add(
+                nz);
+
+            triangles.Add(
+                nx);
+
+            triangles.Add(
+                ny);
+
+            triangles.Add(
+                px);
+
+            triangles.Add(
+                nz);
         }
 
         boundaryMarkerTriangles =
@@ -487,36 +633,51 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
         boundaryMarkerMesh.triangles =
             boundaryMarkerTriangles;
 
-        boundaryMarkerMesh.RecalculateNormals();
-        boundaryMarkerMesh.RecalculateBounds();
+        boundaryMarkerMesh
+            .RecalculateNormals();
+
+        boundaryMarkerMesh
+            .RecalculateBounds();
     }
 
     private void UpdateBoundaryMarkerVertices()
     {
-        if (boundaryMarkerMesh == null ||
-            boundaryLocalNodeIndices == null ||
-            mechanicalTissue == null ||
-            mechanicalTissue.NodeWorldPositions == null)
+        if (boundaryMarkerMesh ==
+                null ||
+            boundaryLocalNodeIndices ==
+                null ||
+            mechanicalTissue ==
+                null ||
+            mechanicalTissue
+                .NodeWorldPositions ==
+                null)
         {
             return;
         }
 
         Vector3[] nodeWorldPositions =
-            mechanicalTissue.NodeWorldPositions;
+            mechanicalTissue
+                .NodeWorldPositions;
 
         int markerCount =
-            boundaryLocalNodeIndices.Length;
+            boundaryLocalNodeIndices
+                .Length;
 
         Vector3[] vertices =
-            boundaryMarkerMesh.vertices;
+            boundaryMarkerMesh
+                .vertices;
 
-        if (vertices == null ||
-            vertices.Length != markerCount * 6)
+        if (vertices ==
+                null ||
+            vertices.Length !=
+                markerCount *
+                6)
         {
             RebuildBoundaryMarkerTopology();
 
             vertices =
-                boundaryMarkerMesh.vertices;
+                boundaryMarkerMesh
+                    .vertices;
         }
 
         float markerRadius =
@@ -525,55 +686,79 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
                 boundaryMarkerRadius);
 
         for (int i = 0;
-             i < markerCount;
+             i <
+                 markerCount;
              ++i)
         {
             int localNode =
-                boundaryLocalNodeIndices[i];
+                boundaryLocalNodeIndices[
+                    i];
+
+            if (localNode <
+                    0 ||
+                localNode >=
+                    nodeWorldPositions
+                        .Length)
+            {
+                continue;
+            }
 
             Vector3 position =
-                nodeWorldPositions[localNode];
+                nodeWorldPositions[
+                    localNode];
 
             int baseVertex =
                 i *
                 6;
 
-            vertices[baseVertex + 0] =
+            vertices[
+                baseVertex +
+                0] =
                 position +
                 new Vector3(
                     markerRadius,
                     0.0f,
                     0.0f);
 
-            vertices[baseVertex + 1] =
+            vertices[
+                baseVertex +
+                1] =
                 position +
                 new Vector3(
                     -markerRadius,
                     0.0f,
                     0.0f);
 
-            vertices[baseVertex + 2] =
+            vertices[
+                baseVertex +
+                2] =
                 position +
                 new Vector3(
                     0.0f,
                     markerRadius,
                     0.0f);
 
-            vertices[baseVertex + 3] =
+            vertices[
+                baseVertex +
+                3] =
                 position +
                 new Vector3(
                     0.0f,
                     -markerRadius,
                     0.0f);
 
-            vertices[baseVertex + 4] =
+            vertices[
+                baseVertex +
+                4] =
                 position +
                 new Vector3(
                     0.0f,
                     0.0f,
                     markerRadius);
 
-            vertices[baseVertex + 5] =
+            vertices[
+                baseVertex +
+                5] =
                 position +
                 new Vector3(
                     0.0f,
@@ -584,14 +769,18 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
         boundaryMarkerMesh.vertices =
             vertices;
 
-        if (boundaryMarkerTriangles != null)
+        if (boundaryMarkerTriangles !=
+            null)
         {
             boundaryMarkerMesh.triangles =
                 boundaryMarkerTriangles;
         }
 
-        boundaryMarkerMesh.RecalculateNormals();
-        boundaryMarkerMesh.RecalculateBounds();
+        boundaryMarkerMesh
+            .RecalculateNormals();
+
+        boundaryMarkerMesh
+            .RecalculateBounds();
     }
 
     private void CreatePointConnectionLineVisual()
@@ -600,15 +789,21 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
             new GameObject(
                 "PhysiK_PointConnection_Lines_Debug");
 
-        pointConnectionLineObject.transform.SetPositionAndRotation(
-            Vector3.zero,
-            Quaternion.identity);
+        pointConnectionLineObject
+            .transform
+            .SetPositionAndRotation(
+                Vector3.zero,
+                Quaternion.identity);
 
         pointConnectionLineMeshFilter =
-            pointConnectionLineObject.AddComponent<MeshFilter>();
+            pointConnectionLineObject
+                .AddComponent<
+                    MeshFilter>();
 
         pointConnectionLineMeshRenderer =
-            pointConnectionLineObject.AddComponent<MeshRenderer>();
+            pointConnectionLineObject
+                .AddComponent<
+                    MeshRenderer>();
 
         pointConnectionLineMesh =
             new Mesh
@@ -617,32 +812,42 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
                     "PhysiK_PointConnection_Lines_Debug_Mesh",
 
                 indexFormat =
-                    UnityEngine.Rendering.IndexFormat.UInt32
+                    UnityEngine.Rendering
+                        .IndexFormat
+                        .UInt32
             };
 
-        pointConnectionLineMesh.MarkDynamic();
+        pointConnectionLineMesh
+            .MarkDynamic();
 
-        pointConnectionLineMeshFilter.sharedMesh =
+        pointConnectionLineMeshFilter
+            .sharedMesh =
             pointConnectionLineMesh;
 
-        if (pointConnectionLineMaterial != null)
+        if (pointConnectionLineMaterial !=
+            null)
         {
-            pointConnectionLineMeshRenderer.sharedMaterial =
+            pointConnectionLineMeshRenderer
+                .sharedMaterial =
                 pointConnectionLineMaterial;
         }
     }
 
     private void RebuildPointConnectionLineTopology()
     {
-        if (pointConnectionLineMesh == null ||
-            boundaryLocalNodeIndices == null ||
-            boundaryAnchorPositions == null)
+        if (pointConnectionLineMesh ==
+                null ||
+            boundaryLocalNodeIndices ==
+                null ||
+            boundaryAnchorPositions ==
+                null)
         {
             return;
         }
 
         int connectionCount =
-            boundaryLocalNodeIndices.Length;
+            boundaryLocalNodeIndices
+                .Length;
 
         pointConnectionLineVertices =
             new Vector3[
@@ -655,18 +860,23 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
                 2];
 
         for (int i = 0;
-             i < connectionCount;
+             i <
+                 connectionCount;
              ++i)
         {
             int baseIndex =
                 i *
                 2;
 
-            pointConnectionLineIndices[baseIndex + 0] =
+            pointConnectionLineIndices[
+                baseIndex +
+                0] =
                 baseIndex +
                 0;
 
-            pointConnectionLineIndices[baseIndex + 1] =
+            pointConnectionLineIndices[
+                baseIndex +
+                1] =
                 baseIndex +
                 1;
         }
@@ -681,28 +891,39 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
             MeshTopology.Lines,
             0);
 
-        pointConnectionLineMesh.RecalculateBounds();
+        pointConnectionLineMesh
+            .RecalculateBounds();
     }
 
     private void UpdatePointConnectionLineVertices()
     {
-        if (pointConnectionLineMesh == null ||
-            boundaryLocalNodeIndices == null ||
-            boundaryAnchorPositions == null ||
-            mechanicalTissue == null ||
-            mechanicalTissue.NodeWorldPositions == null)
+        if (pointConnectionLineMesh ==
+                null ||
+            boundaryLocalNodeIndices ==
+                null ||
+            boundaryAnchorPositions ==
+                null ||
+            mechanicalTissue ==
+                null ||
+            mechanicalTissue
+                .NodeWorldPositions ==
+                null)
         {
             return;
         }
 
         Vector3[] nodeWorldPositions =
-            mechanicalTissue.NodeWorldPositions;
+            mechanicalTissue
+                .NodeWorldPositions;
 
         int connectionCount =
-            boundaryLocalNodeIndices.Length;
+            boundaryLocalNodeIndices
+                .Length;
 
-        if (pointConnectionLineVertices == null ||
-            pointConnectionLineVertices.Length !=
+        if (pointConnectionLineVertices ==
+                null ||
+            pointConnectionLineVertices
+                .Length !=
                 connectionCount *
                 2)
         {
@@ -710,33 +931,51 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
         }
 
         for (int i = 0;
-             i < connectionCount;
+             i <
+                 connectionCount;
              ++i)
         {
             int localNodeIndex =
-                boundaryLocalNodeIndices[i];
+                boundaryLocalNodeIndices[
+                    i];
+
+            if (localNodeIndex <
+                    0 ||
+                localNodeIndex >=
+                    nodeWorldPositions
+                        .Length)
+            {
+                continue;
+            }
 
             Vector3 nodePosition =
-                nodeWorldPositions[localNodeIndex];
+                nodeWorldPositions[
+                    localNodeIndex];
 
             Vector3 anchorPosition =
-                boundaryAnchorPositions[i];
+                boundaryAnchorPositions[
+                    i];
 
             int baseIndex =
                 i *
                 2;
 
-            pointConnectionLineVertices[baseIndex + 0] =
+            pointConnectionLineVertices[
+                baseIndex +
+                0] =
                 nodePosition;
 
-            pointConnectionLineVertices[baseIndex + 1] =
+            pointConnectionLineVertices[
+                baseIndex +
+                1] =
                 anchorPosition;
         }
 
         pointConnectionLineMesh.vertices =
             pointConnectionLineVertices;
 
-        if (pointConnectionLineIndices != null)
+        if (pointConnectionLineIndices !=
+            null)
         {
             pointConnectionLineMesh.SetIndices(
                 pointConnectionLineIndices,
@@ -744,7 +983,8 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
                 0);
         }
 
-        pointConnectionLineMesh.RecalculateBounds();
+        pointConnectionLineMesh
+            .RecalculateBounds();
     }
 
     private void OnValidate()
@@ -765,13 +1005,9 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
                 boundaryMarkerRadius);
     }
 
-    private void OnDestroy()
+    protected override void OnDestroy()
     {
-        if (physikWorld != null)
-        {
-            physikWorld.UnregisterParticipant(
-                this);
-        }
+        DestroyNativeScriptComponent();
 
         initialized =
             false;
@@ -779,16 +1015,20 @@ public class Physik_BoundaryConnections : MonoBehaviour, IPhysikWorldParticipant
         world =
             IntPtr.Zero;
 
-        if (boundaryMarkerObject != null)
+        if (boundaryMarkerObject !=
+            null)
         {
             Destroy(
                 boundaryMarkerObject);
         }
 
-        if (pointConnectionLineObject != null)
+        if (pointConnectionLineObject !=
+            null)
         {
             Destroy(
                 pointConnectionLineObject);
         }
+
+        base.OnDestroy();
     }
 }

@@ -7,15 +7,14 @@ using PhysiK.Unity;
 
 [DefaultExecutionOrder(-200)]
 public sealed class Physik_GraspingTool :
-    MonoBehaviour,
-    IPhysikWorldParticipant
+    Physik_ScriptComponent
 {
     private struct GraspAttachment
     {
         public int globalNodeIndex;
 
         // Contact position expressed in tool-local coordinates.
-        // Calculated once when grasping begins.
+        // Calculated only once when grasping begins.
         public Vector3 localOffsetFromTool;
     }
 
@@ -57,8 +56,6 @@ public sealed class Physik_GraspingTool :
         0.0f;
 
     private PhysiKComponentHandle sphereComponent;
-
-    private Physik_World physikWorld;
 
     private readonly List<GraspAttachment> attachments =
         new List<GraspAttachment>();
@@ -113,6 +110,26 @@ public sealed class Physik_GraspingTool :
             Mathf.Max(
                 1,
                 maxGraspContactCount);
+
+        graspStiffness =
+            Mathf.Max(
+                0.0f,
+                graspStiffness);
+
+        graspDamping =
+            Mathf.Max(
+                0.0f,
+                graspDamping);
+
+        collisionConnectionStiffness =
+            Mathf.Max(
+                0.0f,
+                collisionConnectionStiffness);
+
+        collisionConnectionDamping =
+            Mathf.Max(
+                0.0f,
+                collisionConnectionDamping);
     }
 
     private void Start()
@@ -126,34 +143,6 @@ public sealed class Physik_GraspingTool :
         {
             TryInitialize();
         }
-
-        if (!initialized)
-        {
-            return;
-        }
-
-        ApplyCollisionConnectionSettings();
-
-        PushNativeSpherePosition();
-
-        bool toggleGrasp =
-            possessed &&
-            Keyboard.current != null &&
-            Keyboard.current.gKey.wasPressedThisFrame;
-
-        if (!toggleGrasp)
-        {
-            return;
-        }
-
-        if (grasping)
-        {
-            Release();
-        }
-        else
-        {
-            TryBeginGrasp();
-        }
     }
 
     public void SetPossessed(
@@ -163,36 +152,6 @@ public sealed class Physik_GraspingTool :
             isPossessed;
     }
 
-    public void OnPhysikBeforeSimulationStep(
-        float dt)
-    {
-        if (!initialized ||
-            !grasping ||
-            attachments.Count == 0 ||
-            tissue == null ||
-            tissue.WorldHandle == IntPtr.Zero)
-        {
-            return;
-        }
-
-        PushActiveGraspConnections();
-    }
-
-    public void OnPhysikAfterSimulationFrame()
-    {
-    }
-
-    public void OnPhysikWorldDestroyed()
-    {
-        Release();
-
-        initialized =
-            false;
-
-        physikWorld =
-            null;
-    }
-
     private bool TryInitialize()
     {
         if (initialized)
@@ -200,32 +159,20 @@ public sealed class Physik_GraspingTool :
             return true;
         }
 
-        if (tissue == null)
+        if (tissue ==
+            null)
         {
             tissue =
                 FindFirstObjectByType<
                     Physik_MechanicalTissue>();
         }
 
-        if (tissue == null ||
+        if (tissue ==
+                null ||
             !tissue.IsInitialized ||
-            tissue.WorldHandle == IntPtr.Zero)
+            tissue.WorldHandle ==
+                IntPtr.Zero)
         {
-            return false;
-        }
-
-        physikWorld =
-            tissue.WorldOwner;
-
-        if (physikWorld == null)
-        {
-            Debug.LogError(
-                "Physik_GraspingTool could not find the owning Physik_World.",
-                this);
-
-            enabled =
-                false;
-
             return false;
         }
 
@@ -233,17 +180,19 @@ public sealed class Physik_GraspingTool :
             transform.position;
 
         sphereComponent =
-            PhysiKNative.PHYSIK_CreateCollisionSphereComponent(
-                tissue.WorldHandle,
-                position.x,
-                position.y,
-                position.z,
-                RadiusFromTransform);
+            PhysiKNative
+                .PHYSIK_CreateCollisionSphereComponent(
+                    tissue.WorldHandle,
+                    position.x,
+                    position.y,
+                    position.z,
+                    RadiusFromTransform);
 
         initialized =
-            PhysiKNative.PHYSIK_IsComponentHandleValid(
-                tissue.WorldHandle,
-                sphereComponent) !=
+            PhysiKNative
+                .PHYSIK_IsComponentHandleValid(
+                    tissue.WorldHandle,
+                    sphereComponent) !=
             0;
 
         if (!initialized)
@@ -260,26 +209,111 @@ public sealed class Physik_GraspingTool :
 
         ApplyCollisionConnectionSettings();
 
-        physikWorld.RegisterParticipant(
-            this);
+        PushNativeSpherePosition();
+
+        if (!TryInitializeNativeScriptComponent())
+        {
+            Debug.LogError(
+                "Failed to initialize native ScriptComponent for Physik_GraspingTool.",
+                this);
+
+            PhysiKNative
+                .PHYSIK_DestroyComponent(
+                    tissue.WorldHandle,
+                    sphereComponent);
+
+            initialized =
+                false;
+
+            enabled =
+                false;
+
+            return false;
+        }
 
         return true;
     }
 
-    private void ApplyCollisionConnectionSettings()
+    protected override IntPtr
+        GetScriptWorldHandle()
+    {
+        return tissue !=
+                null
+            ? tissue.WorldHandle
+            : IntPtr.Zero;
+    }
+
+    protected override bool
+        CanInitializeScriptComponent()
+    {
+        return initialized &&
+            tissue !=
+                null &&
+            tissue.IsInitialized &&
+            tissue.WorldHandle !=
+                IntPtr.Zero;
+    }
+
+    protected override void
+        OnPhysikPreUpdate()
     {
         if (!initialized ||
-            tissue == null ||
-            tissue.WorldHandle == IntPtr.Zero)
+            tissue ==
+                null ||
+            tissue.WorldHandle ==
+                IntPtr.Zero)
         {
             return;
         }
 
-        PhysiKNative.PHYSIK_SetCollisionSphereConnectionSettings(
-            tissue.WorldHandle,
-            sphereComponent,
-            collisionConnectionStiffness,
-            collisionConnectionDamping);
+        ApplyCollisionConnectionSettings();
+
+        PushNativeSpherePosition();
+
+        ProcessGraspToggle();
+
+        if (!grasping ||
+            attachments.Count ==
+                0)
+        {
+            return;
+        }
+
+        PushActiveGraspConnections();
+    }
+
+    private void ProcessGraspToggle()
+    {
+        bool toggleGrasp =
+            possessed &&
+            Keyboard.current !=
+                null &&
+            Keyboard.current.gKey
+                .wasPressedThisFrame;
+
+        if (!toggleGrasp)
+        {
+            return;
+        }
+
+        if (grasping)
+        {
+            Release();
+
+            return;
+        }
+
+        TryBeginGrasp();
+    }
+
+    private void ApplyCollisionConnectionSettings()
+    {
+        PhysiKNative
+            .PHYSIK_SetCollisionSphereConnectionSettings(
+                tissue.WorldHandle,
+                sphereComponent,
+                collisionConnectionStiffness,
+                collisionConnectionDamping);
     }
 
     private void PushNativeSpherePosition()
@@ -287,12 +321,13 @@ public sealed class Physik_GraspingTool :
         Vector3 position =
             transform.position;
 
-        PhysiKNative.PHYSIK_SetCollisionComponentKinematicTarget(
-            tissue.WorldHandle,
-            sphereComponent,
-            position.x,
-            position.y,
-            position.z);
+        PhysiKNative
+            .PHYSIK_SetCollisionComponentKinematicTarget(
+                tissue.WorldHandle,
+                sphereComponent,
+                position.x,
+                position.y,
+                position.z);
     }
 
     private bool TryFindClosestSurfaceContactsInsideTool(
@@ -307,8 +342,10 @@ public sealed class Physik_GraspingTool :
         Vector3[] nodeWorldPositions =
             tissue.NodeWorldPositions;
 
-        if (globalNodeIndices == null ||
-            nodeWorldPositions == null ||
+        if (globalNodeIndices ==
+                null ||
+            nodeWorldPositions ==
+                null ||
             globalNodeIndices.Length !=
                 nodeWorldPositions.Length)
         {
@@ -338,13 +375,14 @@ public sealed class Physik_GraspingTool :
              ++localNodeIndex)
         {
             Vector3 offsetFromSphereCenter =
-                nodeWorldPositions[localNodeIndex] -
+                nodeWorldPositions[
+                    localNodeIndex] -
                 sphereCenter;
 
             float distanceSquared =
-                offsetFromSphereCenter.sqrMagnitude;
+                offsetFromSphereCenter
+                    .sqrMagnitude;
 
-            // Only consider nodes that are currently inside the sphere.
             if (distanceSquared >
                 sphereRadiusSquared)
             {
@@ -385,8 +423,10 @@ public sealed class Physik_GraspingTool :
                 ContactCandidate left,
                 ContactCandidate right
             ) =>
-            left.distanceToSphereSurface.CompareTo(
-                right.distanceToSphereSurface));
+            left.distanceToSphereSurface
+                .CompareTo(
+                    right
+                        .distanceToSphereSurface));
 
         int selectedContactCount =
             Mathf.Min(
@@ -399,7 +439,8 @@ public sealed class Physik_GraspingTool :
              ++contactIndex)
         {
             selectedLocalNodeIndices.Add(
-                candidates[contactIndex]
+                candidates[
+                    contactIndex]
                     .localNodeIndex);
         }
 
@@ -446,7 +487,8 @@ public sealed class Physik_GraspingTool :
     private void TryBeginGrasp()
     {
         if (!TryFindClosestSurfaceContactsInsideTool(
-                out List<int> selectedLocalNodeIndices))
+                out List<int>
+                    selectedLocalNodeIndices))
         {
             return;
         }
@@ -477,23 +519,25 @@ public sealed class Physik_GraspingTool :
             Vector3 targetWorldPosition =
                 toolTransform
                     .MultiplyPoint3x4(
-                        attachment.localOffsetFromTool);
+                        attachment
+                            .localOffsetFromTool);
 
-            PhysiKNative.PHYSIK_AddPointConnection(
-                tissue.WorldHandle,
-                attachment.globalNodeIndex,
-                attachment.globalNodeIndex,
-                attachment.globalNodeIndex,
-                attachment.globalNodeIndex,
-                1.0f,
-                0.0f,
-                0.0f,
-                0.0f,
-                targetWorldPosition.x,
-                targetWorldPosition.y,
-                targetWorldPosition.z,
-                graspStiffness,
-                graspDamping);
+            PhysiKNative
+                .PHYSIK_AddPointConnection(
+                    tissue.WorldHandle,
+                    attachment.globalNodeIndex,
+                    attachment.globalNodeIndex,
+                    attachment.globalNodeIndex,
+                    attachment.globalNodeIndex,
+                    1.0f,
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    targetWorldPosition.x,
+                    targetWorldPosition.y,
+                    targetWorldPosition.z,
+                    graspStiffness,
+                    graspDamping);
         }
     }
 
@@ -505,26 +549,27 @@ public sealed class Physik_GraspingTool :
             false;
     }
 
-    private void OnDestroy()
+    protected override void OnDestroy()
     {
-        if (physikWorld != null)
-        {
-            physikWorld.UnregisterParticipant(
-                this);
-        }
+        DestroyNativeScriptComponent();
 
         if (initialized &&
-            tissue != null &&
-            tissue.WorldHandle != IntPtr.Zero)
+            tissue !=
+                null &&
+            tissue.WorldHandle !=
+                IntPtr.Zero)
         {
-            PhysiKNative.PHYSIK_DestroyComponent(
-                tissue.WorldHandle,
-                sphereComponent);
+            PhysiKNative
+                .PHYSIK_DestroyComponent(
+                    tissue.WorldHandle,
+                    sphereComponent);
         }
 
         Release();
 
         initialized =
             false;
+
+        base.OnDestroy();
     }
 }

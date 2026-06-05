@@ -197,10 +197,10 @@ MonoBehaviour:
   boundaryStiffness: 10000
   boundaryDamping: 0
   radialBoundaryOffset: 0
-  drawBoundaryMarkers: 1
+  drawBoundaryMarkers: 0
   boundaryMarkerMaterial: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}
   boundaryMarkerRadius: 0.035
-  drawPointConnectionLines: 1
+  drawPointConnectionLines: 0
   pointConnectionLineMaterial: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}
 --- !u!1 &330585543
 GameObject:
