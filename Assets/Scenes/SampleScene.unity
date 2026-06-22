@@ -1135,7 +1135,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 307b038e8fb942f469ffe94a1fe1ce91, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PhysiK_ConjugateGradientService
-  tolerance: 0.001
+  tolerance: 0.01
   maxIterations: 128
   lastIterations: 0
   lastResidualNorm: 0
